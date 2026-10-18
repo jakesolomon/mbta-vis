@@ -93,18 +93,67 @@ There is no automated verification yet. No test framework is installed, so `bun 
 - No duplicate `mode`/`tos`/`month` rows.
 - First and last month for each mode/TOS pair, which is how I found the commuter rail DO-to-PT switch and the trolleybus end date above.
 
-## Running locally
+## Using this repo
 
-Requires [Bun](https://bun.sh) (`bun@1.4.3`).
+Requires [Bun](https://bun.sh) (`bun@1.4.3`). The steps run in pipeline order. Steps 4 and 5 are planned and not built yet.
+
+### 1. Install
 
 ```bash
 bun install
-
-# put an NTD monthly ridership .xlsx in data/raw/, then:
-bun scripts/extract.ts            # or: bun scripts/extract.ts path/to/file.xlsx
-
-bun dev                           # http://localhost:3000 (template page for now)
 ```
+
+### 2. Get the raw data
+
+1. On transit.dot.gov, open the NTD monthly data release page ([Monthly Module Adjusted Data Release](https://www.transit.dot.gov/ntd/data-product/monthly-module-adjusted-data-release)).
+2. Download the latest **Complete Monthly Ridership (with adjustments and estimates)** workbook (`.xlsx`). The extract reads its `UPT` tab.
+3. Put the file in `data/raw/`. Keep the file name as downloaded. It changes with each release, and the extract finds the file without it.
+
+The workbook is gitignored. Only the CSV the extract produces is committed.
+
+### 3. Extract to CSV
+
+```bash
+bun run extract                        # uses the newest .xlsx in data/raw/
+bun run extract data/raw/<file>.xlsx   # or name a specific workbook
+```
+
+This writes `data/ridership.csv` and prints the file it read and the number of rows it wrote. Before committing a new CSV, check it against the hand checks in [Verification](#verification): no duplicate `mode`/`tos`/`month` rows, and first and last months for each mode that make sense. The script doesn't enforce these yet.
+
+### 4. Database
+
+The live demo runs against my hosted Supabase project. To run your own copy:
+
+1. Create a Supabase project.
+2. Link and apply migrations:
+
+```bash
+   bunx supabase login
+   bunx supabase link --project-ref <your-project-ref>
+   bunx supabase db push
+```
+
+3. Seed (needs `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`):
+
+```bash
+   bun scripts/seed.ts
+```
+
+Local Postgres via `bunx supabase start` (requires Docker) should also work but is untested.
+
+Rules and planned tables are in [Schema and migrations](#schema-and-migrations).
+
+### 5. Seed (planned)
+
+A seed script will upsert `data/ridership.csv` into `ridership_raw`, using the service role key from `.env.local`. Re-run it after every new extract. Views pick up the new data automatically, so a new data release doesn't need a migration. Only a change to groupings or baseline logic does.
+
+### 6. Run the app
+
+```bash
+bun dev        # http://localhost:3000 (template page for now)
+```
+
+### Environment
 
 No app code reads environment variables yet. The Supabase database password is kept in `.env.local`, which is gitignored. Once seeding exists, the service role key it needs will be local-only and won't be used by the deployed app.
 
