@@ -17,6 +17,7 @@ select
         month,
         sum(trips) as trips
         from ridership_raw
+        where mode <> 'DR' -- demand response (The RIDE paratransit) is left out
         group by 1, 2;
 
 create view ridership_vs_2019 as
