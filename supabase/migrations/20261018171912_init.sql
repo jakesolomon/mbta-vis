@@ -6,7 +6,17 @@ create table ridership_raw (
     primary key (mode, tos, month)
 );
 
-create view ridership_monthly as
+-- Public read-only: the API can select, but no policy allows writes.
+-- scripts/seed.ts connects as the table owner, which bypasses RLS.
+alter table ridership_raw enable row level security;
+
+create policy "ridership_raw is publicly readable"
+    on ridership_raw for select
+    to anon, authenticated
+    using (true);
+
+-- security_invoker so the views apply ridership_raw's RLS instead of the owner's privileges
+create view ridership_monthly with (security_invoker = true) as
 select
     case mode
         when 'HR' then 'Subway' when 'LR' then 'Subway'
@@ -20,7 +30,7 @@ select
         where mode <> 'DR' -- demand response (The RIDE paratransit) is left out
         group by 1, 2;
 
-create view ridership_vs_2019 as
+create view ridership_vs_2019 with (security_invoker = true) as
 select m.mode_group, m.month, m.trips,
        m.trips::numeric / b.trips as pct_of_2019
 from ridership_monthly m
