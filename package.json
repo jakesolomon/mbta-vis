@@ -11,6 +11,16 @@
     "seed": "bun scripts/seed.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "@visx/axis": "^4.0.0",
+    "@visx/event": "^4.0.0",
+    "@visx/grid": "^4.0.0",
+    "@visx/group": "^4.0.0",
+    "@visx/responsive": "^4.0.0",
+    "@visx/scale": "^4.0.0",
+    "@visx/shape": "^4.0.0",
+    "@visx/tooltip": "^4.0.0",
+    "d3-array": "^3.2.4",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -19,6 +29,7 @@
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
     "@types/bun": "^1.4.3",
+    "@types/d3-array": "^3.2.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
