@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "extract": "bun scripts/extract.ts"
+    "extract": "bun scripts/extract.ts",
+    "seed": "bun scripts/seed.ts"
   },
   "dependencies": {
     "next": "16.4.2",
