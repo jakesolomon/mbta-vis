@@ -156,7 +156,7 @@ export default function RidershipChart({
                   to={{ x: m.x0, y: innerH }}
                   stroke="var(--chart-muted)"
                   strokeOpacity={0.8}
-                  strokeWidth={1.5}
+                  strokeWidth={1}
                   strokeDasharray="3 3"
                 />
               </g>
