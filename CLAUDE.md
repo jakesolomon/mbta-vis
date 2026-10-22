@@ -17,13 +17,23 @@ bun install
 bun dev                      # next dev on http://localhost:3000
 bun run build                # next build
 bun run lint                 # eslint (flat config, next core-web-vitals + typescript)
+bun test                     # bun:test, all *.test.ts(x); `bun test lib/` or `-t <name>` to narrow
 bun run extract [file.xlsx]  # bun scripts/extract.ts: newest data/raw/*.xlsx (or given file) -> data/ridership.csv
 bun run seed [file.csv]      # bun scripts/seed.ts: replace ridership_raw with data/ridership.csv (or given file)
 bunx supabase db reset --linked --no-seed   # wipe the linked DB and rerun migrations (then `bun run seed`)
 bunx supabase migration list --linked       # compare local vs remote migrations
 ```
 
-No test framework is set up.
+## Tests
+
+`bun test` (Bun's built-in runner, no extra deps). Tests sit next to what they cover:
+
+- `lib/ridership.test.ts`: `indexTo2019Average`, and `getMonthlyRidership` paging/`since`/errors with `next/cache` and supabase-js replaced via `mock.module` (so the module is imported dynamically after the mocks).
+- `scripts/extract.test.ts`, `scripts/seed.test.ts`: the scripts' pure parts (`toMonth`, `extractCsv`, `parseCsv`). The scripts only do I/O under `import.meta.main`, so importing them is side-effect free; keep it that way.
+- `data/ridership.test.ts`: the committed CSV is well-formed, unique on the primary key, and has all of 2019 for every mode group.
+- `app/ridership-chart.test.tsx`: server-renders the chart with `react-dom/server` (720px initial width) and checks the aria summary, legend and data table. No DOM, so pointer/keyboard interaction and the narrow layout aren't covered.
+
+The SQL views aren't tested; they need a database.
 
 ## Next.js 16 specifics
 
