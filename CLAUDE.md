@@ -29,9 +29,10 @@ bunx supabase migration list --linked       # compare local vs remote migrations
 `bun test` (Bun's built-in runner, no extra deps). Tests sit next to what they cover:
 
 - `lib/ridership.test.ts`: `indexTo2019Average`, and `getMonthlyRidership` paging/`since`/errors with `next/cache` and supabase-js replaced via `mock.module` (so the module is imported dynamically after the mocks).
+- `lib/event-layout.test.ts`, `lib/events.test.ts`: event date formatting, label lane stacking, and sanity checks on `EVENTS` (valid dates, sorted, unique starts).
 - `scripts/extract.test.ts`, `scripts/seed.test.ts`: the scripts' pure parts (`toMonth`, `extractCsv`, `parseCsv`). The scripts only do I/O under `import.meta.main`, so importing them is side-effect free; keep it that way.
 - `data/ridership.test.ts`: the committed CSV is well-formed, unique on the primary key, and has all of 2019 for every mode group.
-- `app/ridership-chart.test.tsx`: server-renders the chart with `react-dom/server` (720px initial width) and checks the aria summary, legend and data table. No DOM, so pointer/keyboard interaction and the narrow layout aren't covered.
+- `app/ridership-chart.test.tsx`: server-renders the chart with `react-dom/server` (720px initial width) and checks the aria summary, event labels and data table. No DOM, so pointer/keyboard interaction and the narrow layout aren't covered.
 
 The SQL views aren't tested; they need a database.
 
@@ -49,7 +50,9 @@ Import alias: `@/*` maps to the repo root.
 
 - `lib/ridership.ts`: `getMonthlyRidership(since?)` reads the `ridership_monthly` view with supabase-js (publishable key), paging in 1000-row chunks because PostgREST caps responses at `max_rows = 1000`. It's a `'use cache'` function with `cacheLife('days')`, so `/` prerenders as static. `indexTo2019Average(rows, modeGroup)` turns one mode's months into percent of that mode's 2019 monthly average (throws unless all 12 months of 2019 are present).
 - `app/page.tsx` (Server Component) fetches from 2019-01-01, indexes each mode in `MODES` (Commuter rail, Bus, Subway), and passes them to `app/ridership-chart.tsx`. `MODES` order sets each mode's color slot, so keep it stable.
-- `app/ridership-chart.tsx` (client) is a visx line chart (`@visx/*` v4 + `d3-array`): shared percent y-axis with a 100% baseline, legend, end labels (hidden under 480px or when they'd collide), crosshair tooltip on pointer and arrow keys, and a data table in `<details>`.
+- `app/ridership-chart.tsx` (client) is a visx line chart (`@visx/*` v4 + `d3-array`): shared percent y-axis with a 100% baseline, legend, end labels (hidden under 480px or when they'd collide), event annotations, crosshair tooltip on pointer and arrow keys, and a data table in `<details>`.
+- `lib/event-layout.ts` has the chart's pure event helpers: `monthOf`, `fmtEventDates` and `stackLabels` (lane assignment).
+- `lib/events.ts` (`EVENTS`) holds the editorial event annotations passed to the chart: a point (`start`) or span (`start`–`end`) with a short on-chart `label` and a tooltip/table `detail`. Labels stack in lanes above the plot (the top margin grows per lane); under 480px they become numbers keyed to a list below the chart.
 - Chart colors are CSS variables in `app/globals.css` (`--chart-series-1..3`, `--chart-grid`, `--chart-axis`, `--chart-muted`, `--chart-ink-secondary`), with dark values under `prefers-color-scheme: dark`. A 4th series (e.g. Ferry) needs a 4th slot added there and to `COLORS`.
 - Dates are `YYYY-MM-DD` strings parsed as UTC; format with `timeZone: 'UTC'` and an explicit `en-US` locale to avoid hydration mismatches.
 
