@@ -1,9 +1,7 @@
 import { getEvents } from '@/lib/events'
+import { MODES } from '@/lib/modes'
 import { getMonthlyRidership, indexTo2019Average } from '@/lib/ridership'
 import RidershipChart from './ridership-chart'
-
-// order sets each mode's color slot, so keep it stable
-const MODES = ['Commuter rail', 'Bus', 'Subway']
 
 export default async function Home() {
   const [rows, events] = await Promise.all([getMonthlyRidership('2019-01-01'), getEvents()])
