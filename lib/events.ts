@@ -1,38 +1,34 @@
-// Events annotated on the ridership chart. Dates are YYYY-MM-DD (UTC); `end` makes it a span.
-// Editorial, not data, so they live here rather than in Supabase.
+import { cacheLife, cacheTag } from 'next/cache'
+import { supabase } from './supabase'
+
+// An annotation on the ridership chart. Dates are YYYY-MM-DD (UTC); `end` makes it a span.
 export type RidershipEvent = {
+  id: number
   start: string
   end?: string
   label: string // short, drawn on the chart
-  detail: string // shown in the tooltip and data table
+  detail?: string // shown in the tooltip, narrow-screen list and data table
 }
 
-export const EVENTS: RidershipEvent[] = [
-  {
-    start: '2020-03-10',
-    label: 'COVID-19',
-    detail: 'Massachusetts declares a state of emergency; ridership collapses',
-  },
-  {
-    start: '2022-08-19',
-    end: '2022-09-18',
-    label: 'Orange Line shutdown',
-    detail: '30-day full Orange Line shutdown for track and signal work',
-  },
-  {
-    start: '2022-12-12',
-    label: 'GLX Medford',
-    detail: 'Green Line Extension opens the Medford/Tufts branch',
-  },
-  {
-    start: '2023-07-05',
-    end: '2023-08-31',
-    label: 'Free Blue Line',
-    detail: 'Sumner Tunnel closed; Blue Line fares free',
-  },
-  {
-    start: '2025-03-24',
-    label: 'South Coast Rail',
-    detail: 'Commuter rail service to Fall River and New Bedford begins',
-  },
-]
+// Every annotation from the annotations table, oldest first (the chart stacks labels in this order).
+// Cached like the ridership data; adding or deleting one should revalidateTag('annotations').
+// One request is enough: PostgREST's 1000-row cap is far beyond a chart's worth of labels.
+export async function getEvents(): Promise<RidershipEvent[]> {
+  'use cache'
+  cacheLife('days')
+  cacheTag('annotations')
+
+  const { data, error } = await supabase()
+    .from('annotations')
+    .select('id, date, end_date, label, detail')
+    .order('date')
+    .order('id')
+  if (error) throw new Error(`annotations: ${error.message}`)
+  return data.map(r => ({
+    id: r.id,
+    start: r.date,
+    ...(r.end_date && { end: r.end_date }),
+    label: r.label,
+    ...(r.detail && { detail: r.detail }),
+  }))
+}

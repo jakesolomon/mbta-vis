@@ -11,9 +11,9 @@ const series: Series[] = [
   { name: 'Subway', points: months.slice(1).map(month => ({ mode_group: 'Subway', month, trips: 500, pct: 0.25 })) },
 ]
 const events: RidershipEvent[] = [
-  { start: '2020-01-15', end: '2020-02-10', label: 'Shutdown', detail: 'A span event' },
-  { start: '2020-03-10', label: 'COVID-19', detail: 'A point event' },
-  { start: '2024-01-01', label: 'Later', detail: 'Outside the data, so left out' },
+  { id: 1, start: '2020-01-15', end: '2020-02-10', label: 'Shutdown', detail: 'A span event' },
+  { id: 2, start: '2020-03-10', label: 'COVID-19', detail: 'A point event' },
+  { id: 3, start: '2024-01-01', label: 'Later', detail: 'Outside the data, so left out' },
 ]
 
 const render = (evts = events) =>

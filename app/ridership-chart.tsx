@@ -147,7 +147,7 @@ export default function RidershipChart({
           <Group left={margin.left} top={margin.top}>
             {/* event spans and rules sit under everything; rules run up to their label */}
             {marks.map(m => (
-              <g key={m.start}>
+              <g key={m.id}>
                 {m.end && (
                   <rect x={m.x0} width={Math.max(2, m.x1 - m.x0)} height={innerH} fill="var(--chart-grid)" opacity={0.6} />
                 )}
@@ -164,7 +164,7 @@ export default function RidershipChart({
             {/* labels after the rules, haloed so a later event's rule passes behind them */}
             {marks.map(m => (
               <text
-                key={m.start}
+                key={m.id}
                 x={m.x0 + 4}
                 y={m.labelY}
                 fontSize={11}
@@ -281,8 +281,8 @@ export default function RidershipChart({
               </tbody>
             </table>
             {hoveredEvents.map(e => (
-              <p key={e.start} className="mt-2 max-w-64 border-t border-black/10 pt-2 text-[var(--chart-ink-secondary)] dark:border-white/10">
-                <span className="font-medium text-[var(--foreground)]">{e.label}</span> · {e.detail}
+              <p key={e.id} className="mt-2 max-w-64 border-t border-black/10 pt-2 text-[var(--chart-ink-secondary)] dark:border-white/10">
+                <span className="font-medium text-[var(--foreground)]">{e.label}</span>{e.detail && ` · ${e.detail}`}
               </p>
             ))}
           </TooltipWithBounds>
@@ -292,10 +292,10 @@ export default function RidershipChart({
       {narrow && marks.length > 0 && (
         <ol className="flex flex-col gap-1 text-sm text-[var(--chart-ink-secondary)]">
           {marks.map(m => (
-            <li key={m.start} className="flex gap-2">
+            <li key={m.id} className="flex gap-2">
               <span className="w-3 shrink-0 text-right tabular-nums text-[var(--chart-muted)]">{m.text}</span>
               <span>
-                <span className="font-medium text-[var(--foreground)]">{m.label}</span> ({fmtEventDates(m)}) · {m.detail}
+                <span className="font-medium text-[var(--foreground)]">{m.label}</span> ({fmtEventDates(m)}){m.detail && ` · ${m.detail}`}
               </span>
             </li>
           ))}

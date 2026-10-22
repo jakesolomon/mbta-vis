@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { fmtEventDates, monthOf, stackLabels } from './event-layout'
 
-const event = (start: string, end?: string) => ({ start, end, label: 'x', detail: 'x' })
+const event = (start: string, end?: string) => ({ id: 1, start, end, label: 'x', detail: 'x' })
 
 test('monthOf', () => {
   expect(monthOf('2022-08-19')).toBe('2022-08-01')
