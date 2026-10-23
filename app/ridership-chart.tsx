@@ -10,6 +10,8 @@ import { useParentSize } from '@visx/responsive'
 import { scaleLinear, scaleUtc } from '@visx/scale'
 import { Line, LinePath } from '@visx/shape'
 import { TooltipWithBounds } from '@visx/tooltip'
+import { fmtEventDates, monthOf, stackLabels } from '@/lib/event-layout'
+import type { RidershipEvent } from '@/lib/events'
 import type { IndexedRidership } from '@/lib/ridership'
 
 export type Series = { name: string; points: IndexedRidership[] }
@@ -21,6 +23,10 @@ const NARROW_MARGIN_RIGHT = 16
 const COLORS = ['var(--chart-series-1)', 'var(--chart-series-2)', 'var(--chart-series-3)']
 // end labels closer than this would collide, so they give way to the legend + tooltip
 const MIN_LABEL_GAP = 14
+// event labels stack in lanes above the plot; width is estimated from the 11px label font
+const LANE_H = 14
+const CHAR_W = 6.2
+const LABEL_PAD = 12
 
 // YYYY-MM-DD parses as UTC midnight, so format in UTC too
 const date = (p: { month: string }) => new Date(p.month)
@@ -36,8 +42,17 @@ function Swatch({ color }: { color: string }) {
 }
 
 // Monthly ridership lines (one per series) as a percent of each series' own 2019 monthly average,
-// with a legend, end labels, a snapping crosshair (pointer or arrow keys) and a table view.
-export default function RidershipChart({ title, series }: { title: string; series: Series[] }) {
+// with a legend, end labels, event annotations, a snapping crosshair (pointer or arrow keys)
+// and a table view.
+export default function RidershipChart({
+  title,
+  series,
+  events = [],
+}: {
+  title: string
+  series: Series[]
+  events?: RidershipEvent[]
+}) {
   const { parentRef, width } = useParentSize({ initialSize: { width: 720 } })
   const [active, setActive] = useState<number | null>(null)
 
@@ -46,10 +61,28 @@ export default function RidershipChart({ title, series }: { title: string; serie
   const byMonth = series.map(s => new Map(s.points.map(p => [p.month, p])))
 
   const narrow = width < 480
-  const margin = narrow ? { ...MARGIN, right: NARROW_MARGIN_RIGHT } : MARGIN
-  const innerW = Math.max(0, width - margin.left - margin.right)
-  const innerH = HEIGHT - margin.top - margin.bottom
+  const marginRight = narrow ? NARROW_MARGIN_RIGHT : MARGIN.right
+  const innerW = Math.max(0, width - MARGIN.left - marginRight)
+  const innerH = HEIGHT - MARGIN.top - MARGIN.bottom
   const x = scaleUtc({ domain: [date(months[0]), date(months.at(-1)!)], range: [0, innerW] })
+
+  // events are drawn at their real dates but belong to the month they fall in (tooltip, table);
+  // when narrow, labels become numbers keyed to a list under the chart
+  const first = months[0].month
+  const last = months.at(-1)!.month
+  const shown = events.filter(e => monthOf(e.end ?? e.start) >= first && monthOf(e.start) <= last)
+  const eventsIn = (month: string) =>
+    shown.filter(e => monthOf(e.start) <= month && month <= monthOf(e.end ?? e.start))
+  const labeled = shown.map((e, i) => ({ ...e, x0: x(new Date(e.start)), text: narrow ? String(i + 1) : e.label }))
+  const stacked = stackLabels(labeled.map(m => ({ x: m.x0, width: m.text.length * CHAR_W + LABEL_PAD })))
+  const marks = labeled.map((m, i) => ({
+    ...m,
+    x1: m.end ? x(new Date(m.end)) : m.x0,
+    labelY: -6 - stacked.lanes[i] * LANE_H,
+  }))
+  const bandH = stacked.count * LANE_H
+  const margin = { ...MARGIN, top: MARGIN.top + bandH, right: marginRight }
+  const height = HEIGHT + bandH
   const yMax = max(series.flatMap(s => s.points), p => p.pct) ?? 1
   const y = scaleLinear({ domain: [0, Math.max(1.2, yMax)], range: [innerH, 0], nice: true })
   // a tick each January, every other year when narrow
@@ -62,6 +95,7 @@ export default function RidershipChart({ title, series }: { title: string; serie
 
   const hovered = active === null ? null : months[active]
   const hoveredPoints = hovered ? byMonth.map(m => m.get(hovered.month)) : []
+  const hoveredEvents = hovered ? eventsIn(hovered.month) : []
 
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
     const pt = localPoint(e)
@@ -75,6 +109,9 @@ export default function RidershipChart({ title, series }: { title: string; serie
   }
 
   const summary = series.map((s, i) => `${s.name} ${fmtPct.format(ends[i].pct)}`).join(', ')
+  const eventSummary = shown.length
+    ? ` Marked events: ${shown.map(e => `${e.label} (${fmtEventDates(e)})`).join(', ')}.`
+    : ''
 
   return (
     <figure className="flex flex-col gap-3">
@@ -95,12 +132,12 @@ export default function RidershipChart({ title, series }: { title: string; serie
         </ul>
       </figcaption>
 
-      <div ref={parentRef} className="relative" style={{ height: HEIGHT }}>
+      <div ref={parentRef} className="relative" style={{ height }}>
         <svg
           width={width}
-          height={HEIGHT}
+          height={height}
           role="img"
-          aria-label={`${title}, ${fmtMonth.format(date(months.at(-1)!))}: ${summary} of the 2019 average. Use arrow keys to step through months.`}
+          aria-label={`${title}, ${fmtMonth.format(date(months.at(-1)!))}: ${summary} of the 2019 average.${eventSummary} Use arrow keys to step through months.`}
           tabIndex={0}
           onKeyDown={onKeyDown}
           onFocus={() => setActive(i => i ?? months.length - 1)}
@@ -108,6 +145,37 @@ export default function RidershipChart({ title, series }: { title: string; serie
           className="overflow-visible rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-series-1)]"
         >
           <Group left={margin.left} top={margin.top}>
+            {/* event spans and rules sit under everything; rules run up to their label */}
+            {marks.map(m => (
+              <g key={m.id}>
+                {m.end && (
+                  <rect x={m.x0} width={Math.max(2, m.x1 - m.x0)} height={innerH} fill="var(--chart-grid)" opacity={0.6} />
+                )}
+                <Line
+                  from={{ x: m.x0, y: m.labelY - 9 }}
+                  to={{ x: m.x0, y: innerH }}
+                  stroke="var(--chart-muted)"
+                  strokeOpacity={0.8}
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+              </g>
+            ))}
+            {/* labels after the rules, haloed so a later event's rule passes behind them */}
+            {marks.map(m => (
+              <text
+                key={m.id}
+                x={m.x0 + 4}
+                y={m.labelY}
+                fontSize={11}
+                fill="var(--chart-ink-secondary)"
+                stroke="var(--background)"
+                strokeWidth={3}
+                paintOrder="stroke"
+              >
+                {m.text}
+              </text>
+            ))}
             <GridRows scale={y} width={innerW} numTicks={6} stroke="var(--chart-grid)" />
             {/* the 2019 baseline gets a stronger hairline than the grid */}
             <Line from={{ x: 0, y: y(1) }} to={{ x: innerW, y: y(1) }} stroke="var(--chart-axis)" />
@@ -212,9 +280,27 @@ export default function RidershipChart({ title, series }: { title: string; serie
                 ))}
               </tbody>
             </table>
+            {hoveredEvents.map(e => (
+              <p key={e.id} className="mt-2 max-w-64 border-t border-black/10 pt-2 text-[var(--chart-ink-secondary)] dark:border-white/10">
+                <span className="font-medium text-[var(--foreground)]">{e.label}</span>{e.detail && ` · ${e.detail}`}
+              </p>
+            ))}
           </TooltipWithBounds>
         )}
       </div>
+
+      {narrow && marks.length > 0 && (
+        <ol className="flex flex-col gap-1 text-sm text-[var(--chart-ink-secondary)]">
+          {marks.map(m => (
+            <li key={m.id} className="flex gap-2">
+              <span className="w-3 shrink-0 text-right tabular-nums text-[var(--chart-muted)]">{m.text}</span>
+              <span>
+                <span className="font-medium text-[var(--foreground)]">{m.label}</span> ({fmtEventDates(m)}){m.detail && ` · ${m.detail}`}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
 
       <details className="text-sm">
         <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">Show data table</summary>
@@ -226,6 +312,7 @@ export default function RidershipChart({ title, series }: { title: string; serie
                 {series.map(s => (
                   <th key={s.name} colSpan={2} className="pl-6 text-right font-medium">{s.name}</th>
                 ))}
+                {shown.length > 0 && <th className="pl-6 text-left font-medium">Event</th>}
               </tr>
             </thead>
             <tbody>
@@ -239,6 +326,9 @@ export default function RidershipChart({ title, series }: { title: string; serie
                       <td key={`${series[i].name}-pct`} className="pl-3 text-right">{p ? fmtPct.format(p.pct) : '–'}</td>,
                     ]
                   })}
+                  {shown.length > 0 && (
+                    <td className="whitespace-nowrap pl-6">{eventsIn(m.month).map(e => e.label).join(', ')}</td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -1,17 +1,10 @@
 import { cacheLife } from 'next/cache'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from './supabase'
 
 export type MonthlyRidership = {
   mode_group: string
   month: string // YYYY-MM-DD, first of the month
   trips: number
-}
-
-const supabase = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  if (!url || !key) throw new Error('set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
-  return createClient(url, key, { auth: { persistSession: false } })
 }
 
 // PostgREST caps each response at max_rows (1000), so page through the view

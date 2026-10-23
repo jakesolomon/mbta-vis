@@ -20,7 +20,8 @@ bun run lint                 # eslint (flat config, next core-web-vitals + types
 bun test                     # bun:test, all *.test.ts(x); `bun test lib/` or `-t <name>` to narrow
 bun run extract [file.xlsx]  # bun scripts/extract.ts: newest data/raw/*.xlsx (or given file) -> data/ridership.csv
 bun run seed [file.csv]      # bun scripts/seed.ts: replace ridership_raw with data/ridership.csv (or given file)
-bunx supabase db reset --linked --no-seed   # wipe the linked DB and rerun migrations (then `bun run seed`)
+bunx supabase db push --linked              # apply new migrations to the linked DB
+bunx supabase db reset --linked --no-seed   # rebuild the linked DB from migrations (then `bun run seed`); see Supabase below
 bunx supabase migration list --linked       # compare local vs remote migrations
 ```
 
@@ -29,9 +30,12 @@ bunx supabase migration list --linked       # compare local vs remote migrations
 `bun test` (Bun's built-in runner, no extra deps). Tests sit next to what they cover:
 
 - `lib/ridership.test.ts`: `indexTo2019Average`, and `getMonthlyRidership` paging/`since`/errors with `next/cache` and supabase-js replaced via `mock.module` (so the module is imported dynamically after the mocks).
+- `lib/event-layout.test.ts`: event date formatting and label lane stacking.
+- `lib/annotation-form.test.ts`: `parseAnnotation` trimming, nulls and each validation error.
+- `lib/events.test.ts`: `getEvents` row mapping, ordering and errors, with the same `mock.module` setup as `lib/ridership.test.ts`.
 - `scripts/extract.test.ts`, `scripts/seed.test.ts`: the scripts' pure parts (`toMonth`, `extractCsv`, `parseCsv`). The scripts only do I/O under `import.meta.main`, so importing them is side-effect free; keep it that way.
 - `data/ridership.test.ts`: the committed CSV is well-formed, unique on the primary key, and has all of 2019 for every mode group.
-- `app/ridership-chart.test.tsx`: server-renders the chart with `react-dom/server` (720px initial width) and checks the aria summary, legend and data table. No DOM, so pointer/keyboard interaction and the narrow layout aren't covered.
+- `app/ridership-chart.test.tsx`: server-renders the chart with `react-dom/server` (720px initial width) and checks the aria summary, event labels and data table. No DOM, so pointer/keyboard interaction and the narrow layout aren't covered.
 
 The SQL views aren't tested; they need a database.
 
@@ -47,10 +51,18 @@ Import alias: `@/*` maps to the repo root.
 
 ## App
 
+- `lib/supabase.ts`: `supabaseEnv()` and the anonymous server-side supabase-js client (publishable key, no session, so RLS applies as `anon`). Safe inside `'use cache'`.
+- `lib/auth.ts`: `authClient()`, a per-request `@supabase/ssr` client on the auth cookies (runs as the signed-in user), and `getAdmin()` (verifies the JWT with `getClaims`; reads cookies, so callers sit behind `<Suspense>`). Sign-ups are off, so any valid session is the admin.
+- `proxy.ts` refreshes the Supabase session cookie on `/admin/*` before Server Components render (they can't write cookies). It doesn't gate access.
+- `app/admin/login` is a static email/password form (`useActionState`) posting to the `signIn` server action in `app/admin/actions.ts`; `signOut` is there too. `app/admin/page.tsx` is partially prerendered: the shell is static and `AdminPanel` streams in behind `<Suspense>`, redirecting to `/admin/login` without a session, then reads the annotations fresh as the signed-in user (not via the cached `getEvents`). Both pages are `noindex`.
+- `app/admin/annotations-table.tsx` (client) is the annotations table: inline edit per row, delete with a `confirm()`, and an add row in `<tfoot>`. Inputs sit in table cells and join their row's form via the `form` attribute. They're controlled, and the forms submit through `onSubmit` + `startTransition` rather than `action`, because React's post-action form reset blanks a controlled `<select>`. The `saveAnnotation` (insert without an id, update with one) and `deleteAnnotation` server actions in `app/admin/actions.ts` validate with `parseAnnotation`, write through `authClient()` so RLS applies, then `updateTag('annotations')` (the chart sees the change on the next request) and `refresh()` (the table re-renders).
+- `lib/annotation-form.ts`: the admin's `Annotation` row type and `parseAnnotation(formData)`, which mirrors the table constraints, plus two app-only limits: `LABEL_MAX` (40) and modes limited to `MODES` (the table's check also allows Ferry).
 - `lib/ridership.ts`: `getMonthlyRidership(since?)` reads the `ridership_monthly` view with supabase-js (publishable key), paging in 1000-row chunks because PostgREST caps responses at `max_rows = 1000`. It's a `'use cache'` function with `cacheLife('days')`, so `/` prerenders as static. `indexTo2019Average(rows, modeGroup)` turns one mode's months into percent of that mode's 2019 monthly average (throws unless all 12 months of 2019 are present).
-- `app/page.tsx` (Server Component) fetches from 2019-01-01, indexes each mode in `MODES` (Commuter rail, Bus, Subway), and passes them to `app/ridership-chart.tsx`. `MODES` order sets each mode's color slot, so keep it stable.
-- `app/ridership-chart.tsx` (client) is a visx line chart (`@visx/*` v4 + `d3-array`): shared percent y-axis with a 100% baseline, legend, end labels (hidden under 480px or when they'd collide), crosshair tooltip on pointer and arrow keys, and a data table in `<details>`.
-- Chart colors are CSS variables in `app/globals.css` (`--chart-series-1..3`, `--chart-grid`, `--chart-axis`, `--chart-muted`, `--chart-ink-secondary`), with dark values under `prefers-color-scheme: dark`. A 4th series (e.g. Ferry) needs a 4th slot added there and to `COLORS`.
+- `app/page.tsx` (Server Component) fetches ridership from 2019-01-01 and the annotations in parallel, indexes each mode in `MODES` (`lib/modes.ts`: Commuter rail, Bus, Subway), and passes them to `app/ridership-chart.tsx`. `MODES` order sets each mode's color slot, so keep it stable. It's also the admin's mode dropdown and what `parseAnnotation` accepts, so Ferry stays out of both until it's charted.
+- `app/ridership-chart.tsx` (client) is a visx line chart (`@visx/*` v4 + `d3-array`): shared percent y-axis with a 100% baseline, legend, end labels (hidden under 480px or when they'd collide), event annotations, crosshair tooltip on pointer and arrow keys, and a data table in `<details>`.
+- `lib/event-layout.ts` has the chart's pure event helpers: `monthOf`, `fmtEventDates` and `stackLabels` (lane assignment).
+- `lib/events.ts`: `getEvents()` reads the `annotations` table into the chart's `RidershipEvent` shape: a point (`start`) or span (`start`–`end`) with a short on-chart `label` and an optional tooltip/table `detail`, keyed by `id`. Cached with `cacheLife('days')` and `cacheTag('annotations')`, so whatever adds or deletes an annotation must `revalidateTag('annotations')`. Labels stack in lanes above the plot (the top margin grows per lane); under 480px they become numbers keyed to a list below the chart.
+- Chart colors are CSS variables in `app/globals.css` (`--chart-series-1..3`, `--chart-grid`, `--chart-axis`, `--chart-muted`, `--chart-ink-secondary`), with dark values under `prefers-color-scheme: dark`. A 4th series (e.g. Ferry) needs a 4th slot added there and to `COLORS`, and the mode added to `MODES`.
 - Dates are `YYYY-MM-DD` strings parsed as UTC; format with `timeZone: 'UTC'` and an explicit `en-US` locale to avoid hydration mismatches.
 
 ## Data pipeline
@@ -66,11 +78,24 @@ Import alias: `@/*` maps to the repo root.
 
 `.env.local` (gitignored) holds `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_DB_PASSWORD`.
 
-Schema is a single migration, `supabase/migrations/20261018171912_init.sql`:
+Migrations:
+
+`supabase/migrations/20261018171912_init.sql`:
 
 - `ridership_raw (mode, tos, month, trips)`: RLS enabled with a select-only policy for `anon`/`authenticated`, so the API can't write. The seed script bypasses RLS as the owner.
 - `ridership_monthly`: trips summed per `mode_group` (HR/LR → Subway, MB/RB/TB → Bus, CR → Commuter rail, FB → Ferry) and month. Demand response (`DR`, The RIDE) is excluded.
 - `ridership_vs_2019`: each month vs the same calendar month of 2019 (not used by the app, which indexes to the 2019 annual average instead).
 - Both views are `security_invoker = true` so they apply the table's RLS.
 
-**Keep the migration history clean.** This is a portfolio piece: schema changes go into the existing init migration rather than a new follow-up migration, then reset the linked DB, re-migrate and re-seed (`db reset --linked --no-seed`, `bun run seed`). Resetting is fine since the database holds only reproducible data.
+`supabase/migrations/20261022113612_annotations.sql`:
+
+- `annotations (id, date, label, mode_group, created_at)`: chart event annotations added by the admin through the site. `mode_group` is null for all-mode events, otherwise one of the `ridership_monthly` groups (not drawn by the chart yet). RLS: public select; insert and delete for `authenticated` only (update added by `20261022220819_annotations_update_policy.sql`).
+`supabase/migrations/20261022114251_annotation_spans_and_details.sql` adds `end_date` (after `date`; makes it a span) and `detail` to `annotations`. `supabase/migrations/20261022114252_seed_annotations.sql` inserts the five starting annotations. Schema and data changes go in separate migrations.
+
+- Sign-ups are disabled (`enable_signup = false` in `config.toml` and on the linked project), so the only authenticated user is the admin account created in the Supabase dashboard. Don't re-enable sign-ups without tightening those policies.
+
+**Migrations are append-only.** The linked project has already applied them, so add changes as a new migration (`bunx supabase migration new <name>`) and apply it with `bunx supabase db push --linked` rather than editing old ones.
+
+**Resetting.** `db reset --linked --no-seed` + `bun run seed` rebuilds everything that's in the repo, including the annotations inserted by seed migrations. Annotations added through `/admin` since the last annotations seed migration are lost unless you first add them to a new seed migration. Check whether the admin user in `auth.users` survives a reset before relying on it; if not, re-add it in the dashboard.
+
+**Auth settings.** Change them in the dashboard, not with `supabase config push`: it pushes the whole `config.toml`, whose local-dev values (site URL, MFA) differ from the linked project.

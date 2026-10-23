@@ -12,6 +12,7 @@
     "seed": "bun scripts/seed.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "@visx/axis": "^4.0.0",
     "@visx/event": "^4.0.0",
