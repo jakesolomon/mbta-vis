@@ -10,7 +10,7 @@ import { useParentSize } from '@visx/responsive'
 import { scaleLinear, scaleUtc } from '@visx/scale'
 import { Line, LinePath } from '@visx/shape'
 import { TooltipWithBounds } from '@visx/tooltip'
-import { fmtEventDates, monthOf, stackLabels } from '@/lib/event-layout'
+import { eventMonths, fmtEventDates, hitEvent, monthOf, stackLabels } from '@/lib/event-layout'
 import type { RidershipEvent } from '@/lib/events'
 import type { IndexedRidership } from '@/lib/ridership'
 
@@ -27,6 +27,8 @@ const MIN_LABEL_GAP = 14
 const LANE_H = 14
 const CHAR_W = 6.2
 const LABEL_PAD = 12
+// how far either side of an event's rule still counts as hovering it
+const EVENT_SLOP = 8
 
 // YYYY-MM-DD parses as UTC midnight, so format in UTC too
 const date = (p: { month: string }) => new Date(p.month)
@@ -66,7 +68,8 @@ export default function RidershipChart({
   const innerH = HEIGHT - MARGIN.top - MARGIN.bottom
   const x = scaleUtc({ domain: [date(months[0]), date(months.at(-1)!)], range: [0, innerW] })
 
-  // events are drawn at their real dates but belong to the month they fall in (tooltip, table);
+  // events are drawn at their real dates; the table lists them under the months they fall in, the tooltip
+  // also under the nearest month point (see eventMonths);
   // when narrow, labels become numbers keyed to a list under the chart
   const first = months[0].month
   const last = months.at(-1)!.month
@@ -75,11 +78,18 @@ export default function RidershipChart({
     shown.filter(e => monthOf(e.start) <= month && month <= monthOf(e.end ?? e.start))
   const labeled = shown.map((e, i) => ({ ...e, x0: x(new Date(e.start)), text: narrow ? String(i + 1) : e.label }))
   const stacked = stackLabels(labeled.map(m => ({ x: m.x0, width: m.text.length * CHAR_W + LABEL_PAD })))
-  const marks = labeled.map((m, i) => ({
-    ...m,
-    x1: m.end ? x(new Date(m.end)) : m.x0,
-    labelY: -6 - stacked.lanes[i] * LANE_H,
-  }))
+  const monthKeys = months.map(m => m.month)
+  const marks = labeled.map((m, i) => {
+    const labelY = -6 - stacked.lanes[i] * LANE_H
+    return {
+      ...m,
+      x1: m.end ? x(new Date(m.end)) : m.x0,
+      labelY,
+      ruleTop: labelY - 9,
+      labelBox: { left: m.x0, right: m.x0 + 4 + m.text.length * CHAR_W, top: labelY - 11, bottom: labelY + 3 },
+      months: eventMonths(m, monthKeys),
+    }
+  })
   const bandH = stacked.count * LANE_H
   const margin = { ...MARGIN, top: MARGIN.top + bandH, right: marginRight }
   const height = HEIGHT + bandH
@@ -95,11 +105,21 @@ export default function RidershipChart({
 
   const hovered = active === null ? null : months[active]
   const hoveredPoints = hovered ? byMonth.map(m => m.get(hovered.month)) : []
-  const hoveredEvents = hovered ? eventsIn(hovered.month) : []
+  const hoveredEvents = hovered ? marks.filter(m => m.months.has(hovered.month)) : []
+  const isHovered = (m: (typeof marks)[number]) => hoveredEvents.includes(m)
 
+  // on an event's label or near its rule, the crosshair snaps to one of that event's months
   const onPointerMove = (e: PointerEvent<SVGRectElement>) => {
     const pt = localPoint(e)
-    if (pt) setActive(bisectMonth(months, x.invert(pt.x - margin.left)))
+    if (!pt) return
+    const px = pt.x - margin.left
+    let i = bisectMonth(months, x.invert(px))
+    const hit = hitEvent(marks, px, pt.y - margin.top, EVENT_SLOP)
+    if (hit !== -1 && !marks[hit].months.has(months[i].month)) {
+      const own = [...marks[hit].months].map(m => monthKeys.indexOf(m))
+      i = own.reduce((a, b) => (Math.abs(x(date(months[b])) - px) < Math.abs(x(date(months[a])) - px) ? b : a))
+    }
+    setActive(i)
   }
   const onKeyDown = (e: KeyboardEvent) => {
     const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key]
@@ -149,15 +169,22 @@ export default function RidershipChart({
             {marks.map(m => (
               <g key={m.id}>
                 {m.end && (
-                  <rect x={m.x0} width={Math.max(2, m.x1 - m.x0)} height={innerH} fill="var(--chart-grid)" opacity={0.6} />
+                  <rect
+                    x={m.x0}
+                    width={Math.max(2, m.x1 - m.x0)}
+                    height={innerH}
+                    fill="var(--chart-grid)"
+                    opacity={isHovered(m) ? 1 : 0.6}
+                  />
                 )}
+                {/* solid and darker while the event is in the tooltip */}
                 <Line
-                  from={{ x: m.x0, y: m.labelY - 9 }}
+                  from={{ x: m.x0, y: m.ruleTop }}
                   to={{ x: m.x0, y: innerH }}
-                  stroke="var(--chart-muted)"
-                  strokeOpacity={0.8}
+                  stroke={isHovered(m) ? 'var(--chart-ink-secondary)' : 'var(--chart-muted)'}
+                  strokeOpacity={isHovered(m) ? 1 : 0.8}
                   strokeWidth={1}
-                  strokeDasharray="3 3"
+                  strokeDasharray={isHovered(m) ? undefined : '3 3'}
                 />
               </g>
             ))}
@@ -168,7 +195,8 @@ export default function RidershipChart({
                 x={m.x0 + 4}
                 y={m.labelY}
                 fontSize={11}
-                fill="var(--chart-ink-secondary)"
+                fill={isHovered(m) ? 'var(--foreground)' : 'var(--chart-ink-secondary)'}
+                fontWeight={isHovered(m) ? 600 : undefined}
                 stroke="var(--background)"
                 strokeWidth={3}
                 paintOrder="stroke"
@@ -250,9 +278,11 @@ export default function RidershipChart({
                 ))}
               </g>
             )}
+            {/* reaches up over the event labels so they can be hovered too */}
             <rect
+              y={-bandH - 4}
               width={innerW}
-              height={innerH}
+              height={innerH + bandH + 4}
               fill="transparent"
               onPointerMove={onPointerMove}
               onPointerLeave={() => setActive(null)}
@@ -282,7 +312,9 @@ export default function RidershipChart({
             </table>
             {hoveredEvents.map(e => (
               <p key={e.id} className="mt-2 max-w-64 border-t border-black/10 pt-2 text-[var(--chart-ink-secondary)] dark:border-white/10">
-                <span className="font-medium text-[var(--foreground)]">{e.label}</span>{e.detail && ` · ${e.detail}`}
+                <span className="font-medium text-[var(--foreground)]">{e.label}</span>
+                <span className="text-[var(--chart-muted)]"> ({fmtEventDates(e)})</span>
+                {e.detail && ` · ${e.detail}`}
               </p>
             ))}
           </TooltipWithBounds>
