@@ -14,9 +14,13 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
 
   const { error } = await (await authClient()).auth.signInWithPassword({ email, password })
   if (error) {
-    // don't say which of the two was wrong
-    const message = error.code === 'invalid_credentials' ? 'Wrong email or password.' : error.message
-    return { error: message, email }
+    // Don't say which of the two was wrong, or pass on other errors (e.g. "Email not confirmed"
+    // would confirm the account exists)
+    if (error.code === 'invalid_credentials') return { error: 'Wrong email or password.', email }
+    if (error.code === 'over_request_rate_limit')
+      return { error: 'Too many attempts. Try again in a few minutes.', email }
+    console.error('signIn:', error.code, error.message)
+    return { error: "Couldn't sign in. Try again.", email }
   }
   redirect('/admin')
 }

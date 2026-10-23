@@ -44,6 +44,7 @@ The SQL views aren't tested; they need a database.
 This is Next.js 16.4 / React 19.3 — APIs differ from older versions. Read the relevant guide in `node_modules/next/dist/docs/` (`01-app`, `03-architecture`, …) before writing Next code. Notable settings in `next.config.ts`:
 
 - `cacheComponents: true` and `partialPrefetching: true` — caching/rendering semantics follow the Cache Components model, not the old `fetch`-cache / route segment config defaults.
+- `headers()` sends `frame-ancestors 'none'`, `X-Frame-Options`, `nosniff` and `Referrer-Policy` on every path, and `poweredByHeader: false`. There's deliberately no `script-src` CSP: Next's inline scripts would need per-request nonces, which would stop `/` prerendering as static.
 - Tailwind v4 is wired through Turbopack's `@tailwindcss/turbopack` loader for `*.css` (no PostCSS config). Theme tokens live in `app/globals.css` via `@theme inline`.
 - Layouts use the global `LayoutProps<"/">` / route-typed helpers generated into `.next/types`.
 
@@ -89,13 +90,13 @@ Migrations:
 
 `supabase/migrations/20261022113612_annotations.sql`:
 
-- `annotations (id, date, label, mode_group, created_at)`: chart event annotations added by the admin through the site. `mode_group` is null for all-mode events, otherwise one of the `ridership_monthly` groups (not drawn by the chart yet). RLS: public select; insert and delete for `authenticated` only (update added by `20261022220819_annotations_update_policy.sql`).
+- `annotations (id, date, label, mode_group, created_at)`: chart event annotations added by the admin through the site. `mode_group` is null for all-mode events, otherwise one of the `ridership_monthly` groups (not drawn by the chart yet). RLS: public select; insert, update and delete only for the admin's user id (`20261023140621_annotations_admin_only_writes.sql` replaced the earlier any-`authenticated` policies).
 `supabase/migrations/20261022114251_annotation_spans_and_details.sql` adds `end_date` (after `date`; makes it a span) and `detail` to `annotations`. `supabase/migrations/20261022114252_seed_annotations.sql` inserts the five starting annotations. Schema and data changes go in separate migrations.
 
-- Sign-ups are disabled (`enable_signup = false` in `config.toml` and on the linked project), so the only authenticated user is the admin account created in the Supabase dashboard. Don't re-enable sign-ups without tightening those policies.
+- Sign-ups are disabled (`enable_signup = false` in `config.toml` and on the linked project), so the only authenticated user is the admin account created in the Supabase dashboard. The annotation write policies also check that account's id (`32aef977-…`), so another account couldn't write even if sign-ups were turned on; `getAdmin()` doesn't check the id, so it would still let that account see the admin page.
 
 **Migrations are append-only.** The linked project has already applied them, so add changes as a new migration (`bunx supabase migration new <name>`) and apply it with `bunx supabase db push --linked` rather than editing old ones.
 
-**Resetting.** `db reset --linked --no-seed` + `bun run seed` rebuilds everything that's in the repo, including the annotations inserted by seed migrations. Annotations added through `/admin` since the last annotations seed migration are lost unless you first add them to a new seed migration. Check whether the admin user in `auth.users` survives a reset before relying on it; if not, re-add it in the dashboard.
+**Resetting.** `db reset --linked --no-seed` + `bun run seed` rebuilds everything that's in the repo, including the annotations inserted by seed migrations. Annotations added through `/admin` since the last annotations seed migration are lost unless you first add them to a new seed migration. Check whether the admin user in `auth.users` survives a reset before relying on it; if not, re-add it in the dashboard, and since the new account gets a new id, add a migration pointing the annotation write policies at it.
 
 **Auth settings.** Change them in the dashboard, not with `supabase config push`: it pushes the whole `config.toml`, whose local-dev values (site URL, MFA) differ from the linked project.
