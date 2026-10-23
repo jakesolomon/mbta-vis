@@ -4,7 +4,7 @@ MBTA ridership recovery by mode, from FTA National Transit Database monthly data
 
 Live URL: `TODO(Jake): deployed URL`
 
-Status: early. The extract step works and its output is in `data/ridership.csv`. The database, views and chart page are not built yet; see [Next steps](#next-steps). Sections below say which parts exist and which are planned.
+Status: the pipeline, database, chart page and annotation admin are built.
 
 ## Question
 
@@ -12,7 +12,7 @@ Has MBTA ridership recovered since 2019, and how does recovery differ by mode?
 
 Working hypothesis (not yet tested): commuting hasn't returned. Where ridership did recover, it came from off-peak and leisure trips. If that's right, summer months should be closer to their 2019 levels than winter months, and the gap should be largest on commuter rail.
 
-Finding: `TODO(Jake): headline result once the chart is built`
+Finding: over the 12 months through August 2026, commuter rail averaged 100% of its 2019 monthly ridership, bus 86% and subway 70%. That's the opposite of the working hypothesis: commuter rail has fully recovered, and the largest gap is on the subway.
 
 ## Data
 
@@ -31,17 +31,17 @@ NTD workbook (.xlsx) --extract--> data/ridership.csv --seed--> ridership_raw --v
 | Step | What it does | Status |
 |---|---|---|
 | Extract (`scripts/extract.ts`) | Reads the `UPT` sheet, keeps rows with NTD ID `10003` (MBTA), turns each month column into its own row, converts month headers (Excel serial dates or `M/YYYY`) to `YYYY-MM-01`, strips thousands separators, skips blank cells. Writes `mode,tos,month,trips`. | Built |
-| Extract: duplicate check | Fail if any `mode`/`tos`/`month` appears twice. | Not built. The current CSV has no duplicates (checked by hand), but the script doesn't enforce it. |
-| Seed | Upsert the CSV into `ridership_raw` with no transformation. | Not built |
-| Views | Mode grouping and the 2019 baseline math. | Not built |
+| Extract: duplicate check | Fail if any `mode`/`tos`/`month` appears twice. | Not in the script, but `data/ridership.test.ts` fails if the committed CSV has a duplicate. |
+| Seed (`scripts/seed.ts`) | Replaces `ridership_raw` with the CSV in one transaction, with no transformation. | Built |
+| Views | Mode grouping (`ridership_monthly`). The app indexes each mode to its 2019 monthly average. | Built |
 
-The reason for this split: `ridership_raw` should stay a faithful copy of NTD, and grouping or baseline decisions should change through a migration, not by re-running the extract.
+The reason for this split: `ridership_raw` should stay a faithful copy of NTD, and grouping decisions should change through a migration, not by re-running the extract. The 2019 baseline ended up in the app (`indexTo2019Average` in `lib/ridership.ts`) rather than in a view, so changing it is a code change.
 
-The script takes a workbook path as its first argument. Without one, it uses the most recently modified `.xlsx` in `data/raw/`, because the file name changes with every NTD release. The NTD ID and column names are still marked in the code as needing verification against the source file.
+The script takes a workbook path as its first argument. Without one, it uses the most recently modified `.xlsx` in `data/raw/`, because the file name changes with every NTD release. If the workbook has no `NTD ID`, `Mode` or `TOS` column, the script stops with an error instead of writing a bad CSV.
 
 ## Method and groupings
 
-These are my choices for the analysis. The views that will implement them don't exist yet.
+These are my choices for the analysis. The grouping lives in the `ridership_monthly` view.
 
 | NTD mode | Description | Group |
 |---|---|---|
@@ -55,7 +55,7 @@ These are my choices for the analysis. The views that will implement them don't 
 | FB | Ferry | Excluded for now (see Next steps) |
 
 - Directly operated (DO) and purchased transportation (PT) trips are added together within each mode. This matters for commuter rail: in the CSV it is reported as DO through December 2008 and as PT from January 2009.
-- Baseline: I compare each month to the same calendar month in 2019, so seasonal patterns don't show up as recovery or decline.
+- Baseline: each month is shown as a percentage of that mode's average month in 2019, so 100% means back to 2019 levels and seasonal swings stay visible. I first planned to compare each month to the same calendar month of 2019. That comparison exists as the `ridership_vs_2019` view, but the chart doesn't use it. `TODO(Jake): why the annual average won`
 
 Caveats:
 
@@ -66,36 +66,38 @@ Caveats:
 
 ## Schema and migrations
 
-Not built yet. `supabase/config.toml` exists for a project linked with the Supabase CLI, but there is no `supabase/migrations/` directory and no `seed.sql`.
+Migrations live in `supabase/migrations/` and are applied to the hosted project with `bunx supabase db push --linked`. I never edit a migration that has already been applied; changes go in a new one, and schema and data changes go in separate migrations.
 
-Planned approach:
+- `ridership_raw (mode, tos, month, trips)`: a faithful copy of the CSV. RLS is on, with a select-only policy for `anon` and `authenticated`, so the API can't write to it. The seed script writes as the table owner.
+- `ridership_monthly`: trips summed per mode group and month, using the groupings above.
+- `ridership_vs_2019`: each month against the same calendar month of 2019. Not used by the app.
+- `annotations (id, date, end_date, label, mode_group, detail)`: the events marked on the chart. Anyone can read them; only my admin account can insert, update or delete, enforced by RLS policies that check its user id.
+- Both views use `security_invoker = true`, so they apply `ridership_raw`'s RLS instead of the view owner's privileges.
 
-- Migrations live in `supabase/migrations/` and are applied to the hosted project with `supabase db push`.
-- I never edit a migration that has already been applied. Changes go in a new migration.
-- Seed data is loaded by a script, not by a migration.
-
-The tables, views, RLS policies, and whether the views use `security_invoker` will be documented here from the SQL once it exists.
+Ridership is loaded by `scripts/seed.ts`, not by a migration. The first five annotations come from a seed migration; later ones are added through the site.
 
 ## App Router architecture
 
-Not built yet. `app/page.tsx` is still the create-next-app template. What is already set up in `next.config.ts`:
+Next.js 16 with Cache Components (`cacheComponents: true`), so caching uses `'use cache'` and `cacheLife` instead of the older `fetch` cache.
 
-- `cacheComponents: true`: caching uses the Cache Components model (`'use cache'` and `cacheLife`), not the older `fetch` cache.
-- `partialPrefetching: true`.
-- Tailwind v4 through the `@tailwindcss/turbopack` loader.
-
-The planned design is in Next steps.
+- `app/page.tsx` is a server component. It reads `ridership_monthly` and the annotations through `'use cache'` functions (`lib/ridership.ts`, `lib/events.ts`) with plain supabase-js and the publishable key, cached for days because the data changes monthly. The page prerenders as static HTML.
+- `app/ridership-chart.tsx` is the client component: a visx line chart with event annotations, a keyboard- and pointer-driven tooltip, and a data table.
+- `/admin` signs in with Supabase Auth (email and password, sign-ups off). Its shell is static and the annotations table streams in behind `<Suspense>`. Server actions write through the signed-in user's session, so RLS still applies, then invalidate the `annotations` cache tag so the chart picks up the change.
 
 ## Verification
 
-There is no automated verification yet. No test framework is installed, so `bun test` has nothing to run, and there's no SQL sanity check or deployed page. What I checked by hand in the current CSV:
+`bun test` runs the unit tests (Bun's built-in runner):
 
-- No duplicate `mode`/`tos`/`month` rows.
-- First and last month for each mode/TOS pair, which is how I found the commuter rail DO-to-PT switch and the trolleybus end date above.
+- The extract and seed scripts' parsing.
+- The committed CSV: well formed, no duplicate `mode`/`tos`/`month`, and all of 2019 for every mode group.
+- The 2019 indexing, the headline stats, annotation form validation and the chart's event layout.
+- A server render of the chart: the screen-reader summary, event labels and data table.
+
+The SQL views aren't tested, because that needs a database. What I checked by hand in the CSV: first and last month for each mode/TOS pair, which is how I found the commuter rail DO-to-PT switch and the trolleybus end date above.
 
 ## Using this repo
 
-Requires [Bun](https://bun.sh) (`bun@1.4.3`). The steps run in pipeline order. Steps 4 and 5 are planned and not built yet.
+Requires [Bun](https://bun.sh) (`bun@1.4.3`). The steps run in pipeline order.
 
 ### 1. Install
 
@@ -122,7 +124,7 @@ This writes `data/ridership.csv` and prints the file it read and the number of r
 
 ### 4. Database
 
-The live demo runs against my hosted Supabase project. To run your own copy:
+The live site runs against my hosted Supabase project. To run your own copy:
 
 1. Create a Supabase project.
 2. Link and apply migrations:
@@ -130,32 +132,32 @@ The live demo runs against my hosted Supabase project. To run your own copy:
 ```bash
    bunx supabase login
    bunx supabase link --project-ref <your-project-ref>
-   bunx supabase db push
-```
-
-3. Seed (needs `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`):
-
-```bash
-   bun scripts/seed.ts
+   bunx supabase db push --linked
 ```
 
 Local Postgres via `bunx supabase start` (requires Docker) should also work but is untested.
 
-Rules and planned tables are in [Schema and migrations](#schema-and-migrations).
+### 5. Seed
 
-### 5. Seed (planned)
+```bash
+bun run seed                  # loads data/ridership.csv
+bun run seed path/to/file.csv # or another CSV
+```
 
-A seed script will upsert `data/ridership.csv` into `ridership_raw`, using the service role key from `.env.local`. Re-run it after every new extract. Views pick up the new data automatically, so a new data release doesn't need a migration. Only a change to groupings or baseline logic does.
+This deletes and reinserts all of `ridership_raw` in one transaction, connecting as the table owner. Re-run it after every new extract. The views pick up the new data automatically, so a new data release doesn't need a migration.
 
 ### 6. Run the app
 
 ```bash
-bun dev        # http://localhost:3000 (template page for now)
+bun dev        # http://localhost:3000
 ```
 
 ### Environment
 
-No app code reads environment variables yet. The Supabase database password is kept in `.env.local`, which is gitignored. Once seeding exists, the service role key it needs will be local-only and won't be used by the deployed app.
+`.env.local` (gitignored) holds:
+
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: read by the app. The publishable key is safe in the browser because RLS limits what it can do.
+- `SUPABASE_DB_PASSWORD`: used only by the seed script, together with the pooler URL that `supabase link` saves in `supabase/.temp/`. Set `SUPABASE_DB_URL` instead to seed a different database.
 
 ## How I built this
 
@@ -164,24 +166,18 @@ I used Claude to help plan the architecture and cut the scope down to a weekend'
 ## Next steps
 
 Pipeline and data
-- Make `extract.ts` fail on duplicate `mode`/`tos`/`month` rows.
-- Confirm the NTD ID and column names against the source workbook.
-- Seed script: CSV → `ridership_raw` via upsert, using the service role key locally.
+- Make `extract.ts` itself fail on duplicate `mode`/`tos`/`month` rows, not just the CSV test.
 - Add ferry (FB) as a fourth mode group.
 
 Database
-- First migrations: `ridership_raw`, a mode-group mapping, and views for monthly totals by group and percent of the same month in 2019. RLS on tables, `security_invoker` on views.
-- SQL sanity check: every 2019 month should come out at 100%.
+- SQL sanity check: every mode's 2019 months should average 100%.
 - Local Supabase through Docker/OrbStack instead of working only against the hosted project.
 - Supabase GitHub integration so migrations deploy from the repo.
 
 App
-- Server component that reads the views through a `'use cache'` function with `cacheLife` (the data changes monthly). It will use plain supabase-js with the anon key, because cached functions can't read cookies.
-- Client visx components for the charts and mode toggles.
 - Seasonal dumbbell chart (summer vs. winter recovery by mode) to test the hypothesis.
+- Mode toggles on the chart.
 - `loading.tsx`.
-- Annotations table plus an admin server action to add notes such as GLX opening and the end of trolleybus service.
 
 Testing
-- Vitest component tests.
-- Playwright end-to-end check of the deployed page.
+- Playwright end-to-end check of the deployed page, including chart interaction (the unit tests can't cover pointer and keyboard use).
