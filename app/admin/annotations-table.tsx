@@ -23,9 +23,9 @@ const show = (d: string) => fmtDate.format(new Date(d))
 
 const cell = 'px-2 py-2 align-top'
 const input =
-  'w-full rounded border border-black/15 bg-transparent px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-series-1)] dark:border-white/15'
-const button = 'rounded px-2 py-1 font-medium disabled:opacity-50'
-const primary = `${button} bg-[var(--foreground)] text-[var(--background)]`
+  'w-full border-2 border-foreground bg-background outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background px-2 py-1'
+const button = 'px-2 py-1 font-bold disabled:opacity-50'
+const primary = `${button} bg-band text-band-ink`
 const quiet = `${button} underline-offset-2 hover:underline`
 
 const isError = (s: AnnotationState): s is { error: string } => !!s && 'error' in s
@@ -42,12 +42,12 @@ export default function AnnotationsTable({ rows }: { rows: Annotation[] }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
         <thead>
-          <tr className="border-b border-black/10 text-left text-zinc-600 dark:border-white/10 dark:text-zinc-400">
-            <th className={`${cell} w-36 font-medium`}>Date</th>
-            <th className={`${cell} w-36 font-medium`}>End date</th>
-            <th className={`${cell} w-44 font-medium`}>Label</th>
-            <th className={`${cell} w-32 font-medium`}>Mode</th>
-            <th className={`${cell} font-medium`}>Detail</th>
+          <tr className="border-b-2 border-foreground text-left">
+            <th className={`${cell} w-36 font-bold`}>Date</th>
+            <th className={`${cell} w-36 font-bold`}>End date</th>
+            <th className={`${cell} w-44 font-bold`}>Label</th>
+            <th className={`${cell} w-32 font-bold`}>Mode</th>
+            <th className={`${cell} font-bold`}>Detail</th>
             <th className={`${cell} w-36`}><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -55,11 +55,11 @@ export default function AnnotationsTable({ rows }: { rows: Annotation[] }) {
           {rows.map(row => <AnnotationRow key={row.id} row={row} />)}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className={`${cell} text-zinc-600 dark:text-zinc-400`}>No annotations yet.</td>
+              <td colSpan={6} className={`${cell} text-muted`}>No annotations yet.</td>
             </tr>
           )}
         </tbody>
-        <tfoot className="border-t border-black/10 dark:border-white/10">
+        <tfoot className="border-t-2 border-foreground bg-panel">
           <AddRow />
         </tfoot>
       </table>
@@ -86,16 +86,16 @@ function AnnotationRow({ row }: { row: Annotation }) {
 
   return (
     <>
-      <tr className={`border-b border-black/5 dark:border-white/5 ${deleting ? 'opacity-50' : ''}`}>
+      <tr className={`border-b border-rule ${deleting ? 'opacity-50' : ''}`}>
         {draft ? (
           <DraftCells draft={draft} setDraft={setDraft} formId={formId} />
         ) : (
           <>
             <td className={`${cell} whitespace-nowrap tabular-nums`}>{show(row.date)}</td>
             <td className={`${cell} whitespace-nowrap tabular-nums`}>{row.end_date ? show(row.end_date) : <Muted>—</Muted>}</td>
-            <td className={`${cell} font-medium`}>{row.label}</td>
+            <td className={`${cell} font-bold`}>{row.label}</td>
             <td className={cell}>{row.mode_group ?? <Muted>All modes</Muted>}</td>
-            <td className={`${cell} text-[var(--chart-ink-secondary)]`}>{row.detail ?? <Muted>—</Muted>}</td>
+            <td className={`${cell} text-muted`}>{row.detail ?? <Muted>—</Muted>}</td>
           </>
         )}
         <td className={`${cell} whitespace-nowrap text-right`}>
@@ -112,7 +112,7 @@ function AnnotationRow({ row }: { row: Annotation }) {
               </button>
               <form action={remove} onSubmit={confirmDelete}>
                 <input type="hidden" name="id" value={row.id} />
-                <button type="submit" disabled={deleting} className={`${quiet} text-red-600 dark:text-red-400`} aria-label={`Delete ${row.label}`}>
+                <button type="submit" disabled={deleting} className={`${quiet} text-danger`} aria-label={`Delete ${row.label}`}>
                   {deleting ? 'Deleting…' : 'Delete'}
                 </button>
               </form>
@@ -176,11 +176,11 @@ function DraftCells({ draft, setDraft, formId }: { draft: Draft; setDraft: (d: D
 function ErrorRow({ message }: { message: string }) {
   return (
     <tr>
-      <td colSpan={6} role="alert" className="px-2 pb-2 text-sm text-red-600 dark:text-red-400">{message}</td>
+      <td colSpan={6} role="alert" className="px-2 pb-2 text-sm text-danger">{message}</td>
     </tr>
   )
 }
 
 function Muted({ children }: { children: React.ReactNode }) {
-  return <span className="text-[var(--chart-muted)]">{children}</span>
+  return <span className="text-muted">{children}</span>
 }

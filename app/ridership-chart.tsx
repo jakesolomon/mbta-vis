@@ -23,10 +23,13 @@ const NARROW_MARGIN_RIGHT = 16
 const COLORS = ['var(--chart-series-1)', 'var(--chart-series-2)', 'var(--chart-series-3)']
 // end labels closer than this would collide, so they give way to the legend + tooltip
 const MIN_LABEL_GAP = 14
-// event labels stack in lanes above the plot; width is estimated from the 11px label font
-const LANE_H = 14
-const CHAR_W = 6.2
-const LABEL_PAD = 12
+// event labels stack in lanes above the plot, each after a stop marker; width is estimated from the
+// 11px bold label font
+const LANE_H = 16
+const CHAR_W = 6.6
+const STOP_R = 4.5
+const LABEL_X = 9 // label start, right of the stop
+const LABEL_PAD = 12 + LABEL_X
 // how far either side of an event's rule still counts as hovering it
 const EVENT_SLOP = 8
 
@@ -40,7 +43,7 @@ const bisectMonth = bisector(date).center
 const tickLabel = { fill: 'var(--chart-muted)', fontSize: 11, fontFamily: 'inherit' } as const
 
 function Swatch({ color }: { color: string }) {
-  return <span className="inline-block h-0.5 w-3 shrink-0 rounded-full" style={{ background: color }} />
+  return <span className="inline-block h-1 w-4 shrink-0" style={{ background: color }} />
 }
 
 // Monthly ridership lines (one per series) as a percent of each series' own 2019 monthly average,
@@ -85,8 +88,8 @@ export default function RidershipChart({
       ...m,
       x1: m.end ? x(new Date(m.end)) : m.x0,
       labelY,
-      ruleTop: labelY - 9,
-      labelBox: { left: m.x0, right: m.x0 + 4 + m.text.length * CHAR_W, top: labelY - 11, bottom: labelY + 3 },
+      ruleTop: labelY - 4, // the stop's center; the rule runs down from it
+      labelBox: { left: m.x0 - STOP_R, right: m.x0 + LABEL_X + m.text.length * CHAR_W, top: labelY - 11, bottom: labelY + 3 },
       months: eventMonths(m, monthKeys),
     }
   })
@@ -137,12 +140,12 @@ export default function RidershipChart({
     <figure className="flex flex-col gap-3">
       <figcaption className="flex flex-col gap-2">
         <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <h2 className="text-sm font-bold">{title}</h2>
+          <p className="text-caption text-muted">
             Monthly trips as a percent of each mode&apos;s 2019 monthly average (100%)
           </p>
         </div>
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--chart-ink-secondary)]">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-caption font-medium text-chart-ink-secondary">
           {series.map((s, i) => (
             <li key={s.name} className="flex items-center gap-1.5">
               <Swatch color={COLORS[i]} />
@@ -162,10 +165,10 @@ export default function RidershipChart({
           onKeyDown={onKeyDown}
           onFocus={() => setActive(i => i ?? months.length - 1)}
           onBlur={() => setActive(null)}
-          className="overflow-visible rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--chart-series-1)]"
+          className="overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-4 focus-visible:ring-offset-background"
         >
           <Group left={margin.left} top={margin.top}>
-            {/* event spans and rules sit under everything; rules run up to their label */}
+            {/* event spans and rules sit under everything; rules run up to their stop */}
             {marks.map(m => (
               <g key={m.id}>
                 {m.end && (
@@ -177,36 +180,45 @@ export default function RidershipChart({
                     opacity={isHovered(m) ? 1 : 0.6}
                   />
                 )}
-                {/* solid and darker while the event is in the tooltip */}
+                {/* darker while the event is in the tooltip */}
                 <Line
                   from={{ x: m.x0, y: m.ruleTop }}
                   to={{ x: m.x0, y: innerH }}
-                  stroke={isHovered(m) ? 'var(--chart-ink-secondary)' : 'var(--chart-muted)'}
-                  strokeOpacity={isHovered(m) ? 1 : 0.8}
+                  stroke="var(--foreground)"
+                  strokeOpacity={isHovered(m) ? 0.9 : 0.3}
                   strokeWidth={1}
-                  strokeDasharray={isHovered(m) ? undefined : '3 3'}
                 />
               </g>
             ))}
-            {/* labels after the rules, haloed so a later event's rule passes behind them */}
+            {/* stops and labels after the rules, haloed so a later event's rule passes behind them;
+                the stop fills in while the event is in the tooltip */}
             {marks.map(m => (
-              <text
-                key={m.id}
-                x={m.x0 + 4}
-                y={m.labelY}
-                fontSize={11}
-                fill={isHovered(m) ? 'var(--foreground)' : 'var(--chart-ink-secondary)'}
-                fontWeight={isHovered(m) ? 600 : undefined}
-                stroke="var(--background)"
-                strokeWidth={3}
-                paintOrder="stroke"
-              >
-                {m.text}
-              </text>
+              <g key={m.id}>
+                <circle
+                  cx={m.x0}
+                  cy={m.ruleTop}
+                  r={STOP_R}
+                  fill={isHovered(m) ? 'var(--foreground)' : 'var(--background)'}
+                  stroke="var(--foreground)"
+                  strokeWidth={2.5}
+                />
+                <text
+                  x={m.x0 + LABEL_X}
+                  y={m.labelY}
+                  fontSize={11}
+                  fontWeight={700}
+                  fill={isHovered(m) ? 'var(--foreground)' : 'var(--chart-ink-secondary)'}
+                  stroke="var(--background)"
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                >
+                  {m.text}
+                </text>
+              </g>
             ))}
             <GridRows scale={y} width={innerW} numTicks={6} stroke="var(--chart-grid)" />
-            {/* the 2019 baseline gets a stronger hairline than the grid */}
-            <Line from={{ x: 0, y: y(1) }} to={{ x: innerW, y: y(1) }} stroke="var(--chart-axis)" />
+            {/* the 2019 baseline, dashed in ink over the grid */}
+            <Line from={{ x: 0, y: y(1) }} to={{ x: innerW, y: y(1) }} stroke="var(--chart-axis)" strokeDasharray="5 4" />
             <AxisLeft
               scale={y}
               numTicks={6}
@@ -232,27 +244,27 @@ export default function RidershipChart({
                   x={p => x(date(p))}
                   y={p => y(p.pct)}
                   stroke={COLORS[i]}
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
                 <circle
                   cx={x(date(ends[i]))}
                   cy={y(ends[i].pct)}
-                  r={4}
+                  r={5}
                   fill={COLORS[i]}
                   stroke="var(--background)"
                   strokeWidth={2}
                 />
                 {showEndLabels && (
                   <text
-                    x={x(date(ends[i])) + 8}
+                    x={x(date(ends[i])) + 9}
                     y={y(ends[i].pct)}
                     dy="0.35em"
                     fontSize={12}
                     fill="var(--chart-ink-secondary)"
                   >
-                    {s.name} {fmtPct.format(ends[i].pct)}
+                    <tspan fontWeight={700} fill={COLORS[i]}>{s.name}</tspan> {fmtPct.format(ends[i].pct)}
                   </text>
                 )}
               </g>
@@ -263,14 +275,14 @@ export default function RidershipChart({
                 <Line
                   from={{ x: x(date(hovered)), y: 0 }}
                   to={{ x: x(date(hovered)), y: innerH }}
-                  stroke="var(--chart-muted)"
+                  stroke="var(--foreground)"
                 />
                 {hoveredPoints.map((p, i) => p && (
                   <circle
                     key={series[i].name}
                     cx={x(date(p))}
                     cy={y(p.pct)}
-                    r={4}
+                    r={5}
                     fill={COLORS[i]}
                     stroke="var(--background)"
                     strokeWidth={2}
@@ -296,24 +308,24 @@ export default function RidershipChart({
             top={margin.top + innerH / 3}
             unstyled
             applyPositionStyle
-            className="pointer-events-none rounded-md border border-black/10 bg-[var(--background)] px-3 py-2 text-sm shadow-sm dark:border-white/10"
+            className="pointer-events-none border-2 border-foreground bg-background px-3 py-2 text-sm"
           >
-            <div className="mb-1 text-[var(--chart-muted)]">{fmtMonth.format(date(hovered))}</div>
+            <div className="mb-1 font-bold">{fmtMonth.format(date(hovered))}</div>
             <table className="tabular-nums">
               <tbody>
                 {hoveredPoints.map((p, i) => p && (
                   <tr key={series[i].name}>
                     <td className="pr-3"><span className="flex items-center gap-1.5"><Swatch color={COLORS[i]} />{series[i].name}</span></td>
                     <td className="pr-3 text-right font-semibold">{fmtPct.format(p.pct)}</td>
-                    <td className="text-right text-[var(--chart-ink-secondary)]">{fmtTrips.format(p.trips)} trips</td>
+                    <td className="text-right text-chart-ink-secondary">{fmtTrips.format(p.trips)} trips</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {hoveredEvents.map(e => (
-              <p key={e.id} className="mt-2 max-w-64 border-t border-black/10 pt-2 text-[var(--chart-ink-secondary)] dark:border-white/10">
-                <span className="font-medium text-[var(--foreground)]">{e.label}</span>
-                <span className="text-[var(--chart-muted)]"> ({fmtEventDates(e)})</span>
+              <p key={e.id} className="mt-2 max-w-64 border-t border-rule pt-2 text-chart-ink-secondary">
+                <span className="font-medium text-foreground">{e.label}</span>
+                <span className="text-chart-muted"> ({fmtEventDates(e)})</span>
                 {e.detail && ` · ${e.detail}`}
               </p>
             ))}
@@ -322,12 +334,12 @@ export default function RidershipChart({
       </div>
 
       {narrow && marks.length > 0 && (
-        <ol className="flex flex-col gap-1 text-sm text-[var(--chart-ink-secondary)]">
+        <ol className="flex flex-col gap-1 text-sm text-chart-ink-secondary">
           {marks.map(m => (
             <li key={m.id} className="flex gap-2">
-              <span className="w-3 shrink-0 text-right tabular-nums text-[var(--chart-muted)]">{m.text}</span>
+              <span className="w-3 shrink-0 text-right tabular-nums text-chart-muted">{m.text}</span>
               <span>
-                <span className="font-medium text-[var(--foreground)]">{m.label}</span> ({fmtEventDates(m)}){m.detail && ` · ${m.detail}`}
+                <span className="font-medium text-foreground">{m.label}</span> ({fmtEventDates(m)}){m.detail && ` · ${m.detail}`}
               </span>
             </li>
           ))}
@@ -335,16 +347,16 @@ export default function RidershipChart({
       )}
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">Show data table</summary>
+        <summary className="cursor-pointer font-medium text-muted hover:text-foreground">Show data table</summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full tabular-nums">
             <thead>
-              <tr className="text-zinc-600 dark:text-zinc-400">
-                <th className="text-left font-medium">Month</th>
+              <tr className="border-b-2 border-foreground">
+                <th className="py-1 text-left font-bold">Month</th>
                 {series.map(s => (
-                  <th key={s.name} colSpan={2} className="pl-6 text-right font-medium">{s.name}</th>
+                  <th key={s.name} colSpan={2} className="py-1 pl-6 text-right font-bold">{s.name}</th>
                 ))}
-                {shown.length > 0 && <th className="pl-6 text-left font-medium">Event</th>}
+                {shown.length > 0 && <th className="py-1 pl-6 text-left font-bold">Event</th>}
               </tr>
             </thead>
             <tbody>

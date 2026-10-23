@@ -1,40 +1,101 @@
 @import "tailwindcss";
 
+/* Transit wayfinding: black sign bands, line colors per mode, white (or near-black) ground */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --chart-ink-secondary: #52514e;
-  --chart-muted: #898781;
-  --chart-grid: #e1e0d9;
-  --chart-axis: #c3c2b7;
-  --chart-series-1: #2a78d6;
-  --chart-series-2: #eb6834;
-  --chart-series-3: #1baf7a;
+  --foreground: #111111;
+  --muted: #5a5a5a;
+  --rule: #e3e3e3;
+  --panel: #f2f2f2;
+  --band: #111111;
+  --band-ink: #ffffff;
+  --band-muted: #b8b8b8;
+  --danger: #c4161c;
+  --chart-ink-secondary: #3d3d3d;
+  --chart-muted: #6e6e6e;
+  --chart-grid: #e6e6e6;
+  --chart-axis: #111111;
+  /* MBTA line colors: purple (commuter rail), bus yellow (darkened to hold up on white), red (subway) */
+  --chart-series-1: #80276c;
+  --chart-series-2: #a67c00;
+  --chart-series-3: #da291c;
+  /* text on a filled swatch of each series color */
+  --chart-series-1-ink: #ffffff;
+  --chart-series-2-ink: #111111;
+  --chart-series-3-ink: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-panel: var(--panel);
+  --color-band: var(--band);
+  --color-band-ink: var(--band-ink);
+  --color-band-muted: var(--band-muted);
+  --color-danger: var(--danger);
+  --color-chart-ink-secondary: var(--chart-ink-secondary);
+  --color-chart-muted: var(--chart-muted);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  --color-chart-series-1: var(--chart-series-1);
+  --color-chart-series-2: var(--chart-series-2);
+  --color-chart-series-3: var(--chart-series-3);
+  --color-chart-series-1-ink: var(--chart-series-1-ink);
+  --color-chart-series-2-ink: var(--chart-series-2-ink);
+  --color-chart-series-3-ink: var(--chart-series-3-ink);
+  --font-sans: var(--font-public-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+/* Type steps between (or beyond) Tailwind's defaults; px values at a 16px root */
+@theme {
+  --text-micro: 0.6875rem; /* 11px: footer labels */
+  --text-caption: 0.8125rem; /* 13px: eyebrows, nav, captions, chart legend */
+  --text-wordmark: 0.9375rem; /* 15px */
+  --text-stat: 2.125rem; /* 34px: stat board figures */
+  --text-stat--line-height: 1;
+  --leading-display: 1.02;
+  --tracking-display: -0.02em; /* headlines */
+  --tracking-wordmark: 0.01em;
+  --tracking-eyebrow: 0.08em; /* uppercase labels */
+}
+
+/* Small uppercase section label */
+@utility eyebrow {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --chart-ink-secondary: #c3c2b7;
-    --chart-muted: #898781;
-    --chart-grid: #2c2c2a;
-    --chart-axis: #383835;
-    --chart-series-1: #3987e5;
-    --chart-series-2: #d95926;
-    --chart-series-3: #199e70;
+    color-scheme: dark;
+    --background: #0e0e0e;
+    --foreground: #f2f2f2;
+    --muted: #a6a6a6;
+    --rule: #2a2a2a;
+    --panel: #1a1a1a;
+    --band: #000000;
+    --band-ink: #ffffff;
+    --band-muted: #a6a6a6;
+    --danger: #ff6b5e;
+    --chart-ink-secondary: #cfcfcf;
+    --chart-muted: #8f8f8f;
+    --chart-grid: #262626;
+    --chart-axis: #f2f2f2;
+    --chart-series-1: #c45fae;
+    --chart-series-2: #ffc72c;
+    --chart-series-3: #ff5a4a;
+    --chart-series-1-ink: #111111;
+    --chart-series-2-ink: #111111;
+    --chart-series-3-ink: #111111;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
