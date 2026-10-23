@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { fmtEventDates, monthOf, stackLabels } from './event-layout'
+import { eventMonths, fmtEventDates, hitEvent, monthOf, stackLabels } from './event-layout'
 
 const event = (start: string, end?: string) => ({ id: 1, start, end, label: 'x', detail: 'x' })
 
@@ -59,5 +59,58 @@ describe('stackLabels', () => {
     ])
     expect(lanes).toEqual([0, 1, 1, 0])
     expect(count).toBe(2)
+  })
+})
+
+describe('eventMonths', () => {
+  const months = ['2022-07-01', '2022-08-01', '2022-09-01', '2022-10-01']
+
+  test('a point event early in a month is under that month', () => {
+    expect(eventMonths(event('2022-08-05'), months)).toEqual(new Set(['2022-08-01']))
+  })
+
+  test('a point event late in a month is also under the next, whose point is closer', () => {
+    expect(eventMonths(event('2022-08-24'), months)).toEqual(new Set(['2022-08-01', '2022-09-01']))
+  })
+
+  test('a span is under the months it falls in and the points it covers', () => {
+    expect(eventMonths(event('2022-08-19', '2022-09-18'), months)).toEqual(new Set(['2022-08-01', '2022-09-01']))
+  })
+
+  test('a short span covering no point is also under the nearest one', () => {
+    expect(eventMonths(event('2022-08-20', '2022-08-28'), months)).toEqual(new Set(['2022-08-01', '2022-09-01']))
+  })
+})
+
+describe('hitEvent', () => {
+  const box = (x0: number, x1 = x0) => ({
+    x0,
+    x1,
+    ruleTop: -20,
+    labelBox: { left: x0, right: x0 + 50, top: -22, bottom: -8 },
+  })
+  const boxes = [box(100), box(200, 260)]
+
+  test('near a rule, within the slop', () => {
+    expect(hitEvent(boxes, 106, 50, 8)).toBe(0)
+    expect(hitEvent(boxes, 94, 50, 8)).toBe(0)
+    expect(hitEvent(boxes, 110, 50, 8)).toBe(-1)
+  })
+
+  test('anywhere inside a span in the plot, but only near its rule above the plot', () => {
+    expect(hitEvent(boxes, 240, 50, 8)).toBe(1)
+    expect(hitEvent(boxes, 240, -2, 8)).toBe(-1)
+  })
+
+  test('on a label, even past its rule', () => {
+    expect(hitEvent(boxes, 140, -15, 8)).toBe(0)
+  })
+
+  test('not above where the rule starts', () => {
+    expect(hitEvent(boxes, 100, -30, 8)).toBe(-1)
+  })
+
+  test('the nearest rule wins', () => {
+    expect(hitEvent([box(100), box(110)], 106, 50, 8)).toBe(1)
   })
 })
