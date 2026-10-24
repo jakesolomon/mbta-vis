@@ -2,7 +2,7 @@
 
 MBTA ridership recovery by mode, from FTA National Transit Database monthly data.
 
-Live URL: `TODO(Jake): deployed URL`
+Live URL: https://mbta-vis.vercel.app
 
 Status: the pipeline, database, chart page and annotation admin are built.
 
@@ -13,6 +13,14 @@ Has MBTA ridership recovered since 2019, and how does recovery differ by mode?
 Working hypothesis (not yet tested): commuting hasn't returned. Where ridership did recover, it came from off-peak and leisure trips. If that's right, summer months should be closer to their 2019 levels than winter months, and the gap should be largest on commuter rail.
 
 Finding: over the 12 months through August 2026, commuter rail averaged 100% of its 2019 monthly ridership, bus 86% and subway 70%. That's the opposite of the working hypothesis: commuter rail has fully recovered, and the largest gap is on the subway.
+
+## Annotation admin
+
+The events marked on the chart are managed from `/admin`. Sign in, add an event, and it shows up on the chart on the next page load:
+
+`TODO(Jake): github.com/user-attachments video URL`
+
+Sign-ups are off and RLS only lets my account write. Saving invalidates the cached annotations, so the static page picks up the change without a redeploy. Details in [App Router architecture](#app-router-architecture).
 
 ## Data
 
