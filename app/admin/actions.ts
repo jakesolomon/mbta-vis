@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { parseAnnotation } from '@/lib/annotation-form'
 import { authClient } from '@/lib/auth'
 
-export type SignInState = { error: string; email: string } | undefined
+export type SignInState = { error: string; email: string } | { signedIn: true } | undefined
 
 export async function signIn(_prev: SignInState, formData: FormData): Promise<SignInState> {
   const email = String(formData.get('email') ?? '').trim()
@@ -22,7 +22,10 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
     console.error('signIn:', error.code, error.message)
     return { error: "Couldn't sign in. Try again.", email }
   }
-  redirect('/admin')
+  // Not redirect('/admin'): the client router can serve /admin from an App Shell it prefetched
+  // while signed out (the header's Admin link), whose AdminPanel redirects back here. The form
+  // does a full page load instead.
+  return { signedIn: true }
 }
 
 export async function signOut() {
