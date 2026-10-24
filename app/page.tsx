@@ -48,6 +48,7 @@ export default async function Home() {
   const stats = series.map(s => summarize(s.points))
   const [rail, bus, subway] = stats
   const latest = stats[0].latest
+  const windowStart = series[0].points.at(-12) ?? series[0].points[0]
   const subway2023 = yearAverage(series[2].points, 2023)
 
   return (
@@ -66,25 +67,30 @@ export default async function Home() {
         </p>
       </div>
 
-      <ul aria-label="Average of the last 12 months, as a share of 2019" className="grid border-2 border-foreground sm:grid-cols-3">
-        {series.map((s, i) => (
-          <li
-            key={s.name}
-            className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 border-foreground px-4 py-3.5 not-first:border-t-2 sm:not-first:border-t-0 sm:not-first:border-l-2"
-          >
-            <span
-              aria-hidden="true"
-              className={`row-span-2 grid size-11 place-items-center rounded-full text-caption font-extrabold ${BULLETS[i].className}`}
+      <figure>
+        <figcaption id="stats-caption" className="eyebrow mb-2 text-muted">
+          Average of the last 12 months ({month(windowStart)}–{month(latest)}) as a share of 2019
+        </figcaption>
+        <ul aria-labelledby="stats-caption" className="grid border-2 border-foreground sm:grid-cols-3">
+          {series.map((s, i) => (
+            <li
+              key={s.name}
+              className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 border-foreground px-4 py-3.5 not-first:border-t-2 sm:not-first:border-t-0 sm:not-first:border-l-2"
             >
-              {BULLETS[i].text}
-            </span>
-            <span className="text-stat font-extrabold tabular-nums">{fmtPct.format(stats[i].recent)}</span>
-            <span className="text-caption text-muted">
-              {s.name} · low {fmtPct.format(stats[i].low.pct)} {month(stats[i].low)}
-            </span>
-          </li>
-        ))}
-      </ul>
+              <span
+                aria-hidden="true"
+                className={`row-span-2 grid size-11 place-items-center rounded-full text-caption font-extrabold ${BULLETS[i].className}`}
+              >
+                {BULLETS[i].text}
+              </span>
+              <span className="text-stat font-extrabold tabular-nums">{fmtPct.format(stats[i].recent)}</span>
+              <span className="text-caption text-muted">
+                <span className="sr-only">{s.name}: </span>Lowest month {fmtPct.format(stats[i].low.pct)}, {month(stats[i].low)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </figure>
 
       <RidershipChart title="Ridership by mode since 2019" series={series} events={events} />
 
