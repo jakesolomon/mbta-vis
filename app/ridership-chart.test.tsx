@@ -47,11 +47,29 @@ test('the data table has a row per month, with events by month', () => {
   const table = render().split('<tbody>').at(-1)!
   const rows = table.match(/<tr>.*?<\/tr>/g)!
   expect(rows).toHaveLength(months.length)
-  const cells = (row: string) => [...row.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map(m => m[1])
+  const cells = (row: string) => [...row.matchAll(/<t[hd][^>]*>(.*?)<\/t[hd]>/g)].map(m => m[1])
   expect(cells(rows[0])).toEqual(['Dec 2019', '1,000', '50%', '–', '–', ''])
-  expect(cells(rows[1])).toEqual(['Jan 2020', '2,000', '100%', '500', '25%', 'Shutdown'])
+  // the detail only in an event's first month
+  expect(cells(rows[1])).toEqual(['Jan 2020', '2,000', '100%', '500', '25%', 'Shutdown: A span event'])
   expect(cells(rows[2])).toEqual(['Feb 2020', '3,000', '150%', '500', '25%', 'Shutdown'])
-  expect(cells(rows[3])).toEqual(['Mar 2020', '4,000', '200%', '500', '25%', 'COVID-19'])
+  expect(cells(rows[3])).toEqual(['Mar 2020', '4,000', '200%', '500', '25%', 'COVID-19: A point event'])
+})
+
+test('the data table labels each column under its mode, and each row by month', () => {
+  const html = render()
+  const head = html.split('<thead>')[1].split('</thead>')[0]
+  expect(head.match(/scope="colgroup"[^>]*>(Bus|Subway)</g)).toHaveLength(2)
+  expect(head.match(/scope="col"[^>]*>Trips</g)).toHaveLength(2)
+  expect(head.match(/scope="col"[^>]*>% of 2019</g)).toHaveLength(2)
+  expect(html).toContain('<th scope="row"')
+  expect(html).toContain('<caption')
+})
+
+test('the chart takes keyboard focus as an application, with an empty live region until focused', () => {
+  const html = render()
+  expect(html).toContain('role="application"')
+  expect(html).toContain('aria-roledescription="chart"')
+  expect(html).toMatch(/<p aria-live="polite" class="sr-only"><\/p>/)
 })
 
 test('without events there is no event column or summary', () => {

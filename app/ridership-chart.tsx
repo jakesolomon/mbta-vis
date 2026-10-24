@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { bisector, max } from 'd3-array'
 import { AxisBottom, AxisLeft } from '@visx/axis'
 import { localPoint } from '@visx/event'
@@ -21,6 +21,8 @@ const MARGIN = { top: 16, right: 112, bottom: 32, left: 44 }
 const NARROW_MARGIN_RIGHT = 16
 // categorical slots from globals.css, assigned by series order (never cycled)
 const COLORS = ['var(--chart-series-1)', 'var(--chart-series-2)', 'var(--chart-series-3)']
+// the same slots darkened where needed to pass text contrast, for the end labels
+const TEXT_COLORS = ['var(--chart-series-1-text)', 'var(--chart-series-2-text)', 'var(--chart-series-3-text)']
 // end labels closer than this would collide, so they give way to the legend + tooltip
 const MIN_LABEL_GAP = 14
 // event labels stack in lanes above the plot, each after a stop marker; width is estimated from the
@@ -60,6 +62,16 @@ export default function RidershipChart({
 }) {
   const { parentRef, width } = useParentSize({ initialSize: { width: 720 } })
   const [active, setActive] = useState<number | null>(null)
+  // only keyboard focus announces the active month; pointer hover would be too chatty
+  const [focused, setFocused] = useState(false)
+
+  // Escape dismisses the tooltip, whether it came from hover or focus
+  useEffect(() => {
+    if (active === null) return
+    const onEscape = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && setActive(null)
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [active])
 
   // the x positions the crosshair snaps to; series are looked up by month so they needn't align
   const months = [...new Set(series.flatMap(s => s.points.map(p => p.month)))].sort().map(month => ({ month }))
@@ -131,6 +143,18 @@ export default function RidershipChart({
     setActive(i => Math.min(months.length - 1, Math.max(0, (i ?? months.length - 1) + step)))
   }
 
+  // what the live region reads out as the keyboard steps through months
+  const announcement = hovered && focused
+    ? [
+        `${fmtMonth.format(date(hovered))}: ` +
+          hoveredPoints
+            .map((p, i) => p && `${series[i].name} ${fmtPct.format(p.pct)}, ${fmtTrips.format(p.trips)} trips`)
+            .filter(Boolean)
+            .join('; ') + '.',
+        ...hoveredEvents.map(e => `${e.label} (${fmtEventDates(e)})${e.detail ? `: ${e.detail}` : ''}.`),
+      ].join(' ')
+    : ''
+
   const summary = series.map((s, i) => `${s.name} ${fmtPct.format(ends[i].pct)}`).join(', ')
   const eventSummary = shown.length
     ? ` Marked events: ${shown.map(e => `${e.label} (${fmtEventDates(e)})`).join(', ')}.`
@@ -159,12 +183,20 @@ export default function RidershipChart({
         <svg
           width={width}
           height={height}
-          role="img"
+          // application, so screen readers pass the arrow keys through instead of reading on
+          role="application"
+          aria-roledescription="chart"
           aria-label={`${title}, ${fmtMonth.format(date(months.at(-1)!))}: ${summary} of the 2019 average.${eventSummary} Use arrow keys to step through months.`}
           tabIndex={0}
           onKeyDown={onKeyDown}
-          onFocus={() => setActive(i => i ?? months.length - 1)}
-          onBlur={() => setActive(null)}
+          onFocus={() => {
+            setFocused(true)
+            setActive(i => i ?? months.length - 1)
+          }}
+          onBlur={() => {
+            setFocused(false)
+            setActive(null)
+          }}
           className="overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-4 focus-visible:ring-offset-background"
         >
           <Group left={margin.left} top={margin.top}>
@@ -264,7 +296,7 @@ export default function RidershipChart({
                     fontSize={12}
                     fill="var(--chart-ink-secondary)"
                   >
-                    <tspan fontWeight={700} fill={COLORS[i]}>{s.name}</tspan> {fmtPct.format(ends[i].pct)}
+                    <tspan fontWeight={700} fill={TEXT_COLORS[i]}>{s.name}</tspan> {fmtPct.format(ends[i].pct)}
                   </text>
                 )}
               </g>
@@ -331,6 +363,7 @@ export default function RidershipChart({
             ))}
           </TooltipWithBounds>
         )}
+        <p aria-live="polite" className="sr-only">{announcement}</p>
       </div>
 
       {narrow && marks.length > 0 && (
@@ -350,19 +383,26 @@ export default function RidershipChart({
         <summary className="cursor-pointer font-medium text-muted hover:text-foreground">Show data table</summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full tabular-nums">
+            <caption className="sr-only">{title}: monthly trips and percent of 2019 average</caption>
             <thead>
-              <tr className="border-b-2 border-foreground">
-                <th className="py-1 text-left font-bold">Month</th>
+              <tr>
+                <th rowSpan={2} scope="col" className="py-1 text-left align-bottom font-bold">Month</th>
                 {series.map(s => (
-                  <th key={s.name} colSpan={2} className="py-1 pl-6 text-right font-bold">{s.name}</th>
+                  <th key={s.name} colSpan={2} scope="colgroup" className="pt-1 pl-6 text-right font-bold">{s.name}</th>
                 ))}
-                {shown.length > 0 && <th className="py-1 pl-6 text-left font-bold">Event</th>}
+                {shown.length > 0 && <th rowSpan={2} scope="col" className="py-1 pl-6 text-left align-bottom font-bold">Event</th>}
+              </tr>
+              <tr className="border-b-2 border-foreground text-caption text-muted">
+                {series.map(s => [
+                  <th key={`${s.name}-trips`} scope="col" className="pb-1 pl-6 text-right font-medium">Trips</th>,
+                  <th key={`${s.name}-pct`} scope="col" className="pb-1 pl-3 text-right font-medium">% of 2019</th>,
+                ])}
               </tr>
             </thead>
             <tbody>
               {months.map(m => (
                 <tr key={m.month}>
-                  <td className="whitespace-nowrap">{fmtMonth.format(date(m))}</td>
+                  <th scope="row" className="whitespace-nowrap text-left font-normal">{fmtMonth.format(date(m))}</th>
                   {byMonth.map((b, i) => {
                     const p = b.get(m.month)
                     return [
@@ -370,8 +410,13 @@ export default function RidershipChart({
                       <td key={`${series[i].name}-pct`} className="pl-3 text-right">{p ? fmtPct.format(p.pct) : '–'}</td>,
                     ]
                   })}
+                  {/* the detail goes with the event's first month only, so a span doesn't repeat it */}
                   {shown.length > 0 && (
-                    <td className="whitespace-nowrap pl-6">{eventsIn(m.month).map(e => e.label).join(', ')}</td>
+                    <td className="min-w-48 pl-6">
+                      {eventsIn(m.month)
+                        .map(e => (e.detail && monthOf(e.start) === m.month ? `${e.label}: ${e.detail}` : e.label))
+                        .join('; ')}
+                    </td>
                   )}
                 </tr>
               ))}
