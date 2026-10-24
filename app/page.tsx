@@ -19,7 +19,8 @@ const fmtMonthLong = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'nu
 const month = (p: { month: string }, fmt = fmtMonth) => fmt.format(new Date(p.month))
 
 const code = 'font-mono text-xs [overflow-wrap:anywhere]'
-const codeLink = `${code} underline decoration-rule underline-offset-2 hover:decoration-current`
+// the underline is what sets these apart from the <code> beside them, so it has to be visible (6:1 on the panel)
+const codeLink = `${code} underline decoration-muted underline-offset-2 hover:decoration-current`
 
 // the data pipeline, in order, drawn as stops on a line
 const ROUTE = [

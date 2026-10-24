@@ -23,6 +23,10 @@
   --chart-series-1-ink: #ffffff;
   --chart-series-2-ink: #111111;
   --chart-series-3-ink: #ffffff;
+  /* each series color as text on the background (4.5:1); only the bus yellow needs darkening */
+  --chart-series-1-text: #80276c;
+  --chart-series-2-text: #8a6700;
+  --chart-series-3-text: #da291c;
 }
 
 @theme inline {
@@ -45,6 +49,9 @@
   --color-chart-series-1-ink: var(--chart-series-1-ink);
   --color-chart-series-2-ink: var(--chart-series-2-ink);
   --color-chart-series-3-ink: var(--chart-series-3-ink);
+  --color-chart-series-1-text: var(--chart-series-1-text);
+  --color-chart-series-2-text: var(--chart-series-2-text);
+  --color-chart-series-3-text: var(--chart-series-3-text);
   --font-sans: var(--font-public-sans);
   --font-mono: var(--font-plex-mono);
 }
@@ -92,6 +99,9 @@
     --chart-series-1-ink: #111111;
     --chart-series-2-ink: #111111;
     --chart-series-3-ink: #111111;
+    --chart-series-1-text: #c45fae;
+    --chart-series-2-text: #ffc72c;
+    --chart-series-3-text: #ff5a4a;
   }
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 import { Suspense } from 'react'
 import type { Annotation } from '@/lib/annotation-form'
 import { authClient, getAdmin } from '@/lib/auth'
@@ -22,6 +23,9 @@ export default function AdminPage() {
 }
 
 async function AdminPanel() {
+  // Per request only, never in the prefetched App Shell: a signed-out prefetch would cache the
+  // redirect below, and signed in, getClaims' expiry check (Date.now()) can't run in a prerender
+  await connection()
   const admin = await getAdmin()
   if (!admin) redirect('/admin/login')
 
