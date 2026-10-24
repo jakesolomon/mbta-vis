@@ -25,7 +25,7 @@ Sign-ups are off and RLS only lets my account write. Saving invalidates the cach
 ## Data
 
 - Source: FTA National Transit Database monthly ridership workbook, `UPT` (unlinked passenger trips) tab.
-- Release: `TODO(Jake): release name and date`
+- Release: August 2026 Complete Monthly Ridership (with adjustments and estimates), released October 1, 2026.
 - The raw workbook goes in `data/raw/` and is gitignored (`/data/raw/*.xlsx`). `data/ridership.csv` is the cleaned output and is meant to be committed.
 - The current CSV covers January 2002 through August 2026.
 - NTD revises recent months after release, so the last few months of any release are provisional.
