@@ -18,7 +18,7 @@ Finding: over the 12 months through August 2026, commuter rail averaged 100% of 
 
 The events marked on the chart are managed from `/admin`. Sign in, add an event, and it shows up on the chart on the next page load:
 
-`TODO(Jake): github.com/user-attachments video URL`
+https://github.com/user-attachments/assets/854a87c5-98c4-49f5-9cbf-e8328a26f3b0
 
 Sign-ups are off and RLS only lets my account write. Saving invalidates the cached annotations, so the static page picks up the change without a redeploy. Details in [App Router architecture](#app-router-architecture).
 
