@@ -189,7 +189,7 @@ I used Claude to help plan the architecture and cut the scope down to a weekend'
 
 Analysis
 - Make the seasonal check reproducible: a SQL query over `ridership_vs_2019` (or a small script) instead of a one-off calculation, so it can be rerun on each NTD release.
-- Test the leisure prediction directly with finer data. NTD's monthly totals can't separate commuting from leisure, but the MBTA's open data portal publishes ridership by day and time of day (for example, subway gated station entries), which would allow comparing weekday peak trips with weekend trips against 2019.
+- Test the leisure prediction directly with finer data. NTD's monthly totals can't separate commuting from leisure, but the MBTA's [Gated Station Entries - Historical](https://mbta-massdot.opendata.arcgis.com/datasets/7859894afb5641ce91a2bb03599fdf5b) dataset counts fare-gate entries at subway, Silver Line and light rail stations by service date and 30-minute period, back to 2014. That would allow comparing weekday peak trips with weekend trips against 2019, for the subway at least.
 - Seasonal dumbbell chart (summer vs. winter recovery by mode), once the result is clear enough to show on the site.
 
 Pipeline and data
