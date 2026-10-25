@@ -10,9 +10,23 @@ Status: the pipeline, database, chart page and annotation admin are built.
 
 Has MBTA ridership recovered since 2019, and how does recovery differ by mode?
 
-Working hypothesis (not yet tested): commuting hasn't returned. Where ridership did recover, it came from off-peak and leisure trips. If that's right, summer months should be closer to their 2019 levels than winter months, and the gap should be largest on commuter rail.
+Hypothesis, written before looking at the data: commuting hasn't come back, and what recovery there is comes from off-peak and leisure trips. That predicts two things:
 
-Finding: over the 12 months through August 2026, commuter rail averaged 100% of its 2019 monthly ridership, bus 86% and subway 70%. That's the opposite of the working hypothesis: commuter rail has fully recovered, and the largest gap is on the subway.
+1. Commuter rail, the most commute-heavy mode, is furthest from 2019.
+2. Summer months are closer to their 2019 levels than winter months.
+
+Findings, with data through August 2026:
+
+1. **Rejected.** Over the last 12 months, commuter rail averaged 100% of its 2019 monthly ridership, bus 86% and subway 70%. Commuter rail has fully recovered, and the largest gap is on the subway, which is still climbing (58% in 2023, 71% so far in 2026).
+2. **Mixed at best.** Comparing each month with the same month of 2019 (the `ridership_vs_2019` view), commuter rail's summers (June–August) beat the winter before them (December–February) every year from 2023 to 2026. Bus and subway go back and forth:
+
+   | Summer vs. winter, % of 2019 | 2023 | 2024 | 2025 | 2026 |
+   |---|---|---|---|---|
+   | Commuter rail | 85 vs. 72 | 101 vs. 90 | 92 vs. 88 | 105 vs. 95 |
+   | Bus | 78 vs. 75 | 85 vs. 95 | 83 vs. 83 | 93 vs. 81 |
+   | Subway | 60 vs. 57 | 57 vs. 54 | 63 vs. 66 | 72 vs. 66 |
+
+   This is an indirect test, since NTD's monthly totals don't split weekday from weekend trips, and seasons carry other differences (weather, service changes, shutdowns). The table was computed once from the August 2026 release. It's left off the site because the result is inconclusive.
 
 ## Annotation admin
 
@@ -63,14 +77,14 @@ These are my choices for the analysis. The grouping lives in the `ridership_mont
 | FB | Ferry | Excluded for now (see Next steps) |
 
 - Directly operated (DO) and purchased transportation (PT) trips are added together within each mode. This matters for commuter rail: in the CSV it is reported as DO through December 2008 and as PT from January 2009.
-- Baseline: each month is shown as a percentage of that mode's average month in 2019, so 100% means back to 2019 levels and seasonal swings stay visible. I first planned to compare each month to the same calendar month of 2019. That comparison exists as the `ridership_vs_2019` view, but the chart doesn't use it. `TODO(Jake): why the annual average won`
+- Baseline: the chart shows each month as a percentage of that mode's average month in 2019, so 100% means back to 2019 levels and seasonal swings stay visible. The seasonal check above uses the other comparison, each month against the same calendar month of 2019 (the `ridership_vs_2019` view), which takes seasonality out. The two agree on the 12-month averages.
 
 Caveats:
 
 - Trolleybus: TB rows end in June 2022, when the trolleybuses were retired. Grouping TB with bus means that change is absorbed in the Bus total.
-- Green Line Extension (opened 2022) adds light-rail riders with no 2019 equivalent, which pushes Subway recovery up.
+- Green Line Extension (opened 2022) adds light-rail riders with no 2019 equivalent, which pushes Subway recovery up. Without it, the subway gap would be larger.
 - Commuter rail schedules changed in 2020–21, so service levels aren't the same as in 2019.
-- NTD monthly data has no weekday/weekend split, so the leisure hypothesis can only be tested indirectly, through seasonal patterns.
+- NTD monthly data has no weekday/weekend split, so the leisure part of the hypothesis can only be tested indirectly, through seasonal patterns.
 
 ## Schema and migrations
 
@@ -173,6 +187,11 @@ I used Claude to help plan the architecture and cut the scope down to a weekend'
 
 ## Next steps
 
+Analysis
+- Make the seasonal check reproducible: a SQL query over `ridership_vs_2019` (or a small script) instead of a one-off calculation, so it can be rerun on each NTD release.
+- Test the leisure prediction directly with finer data. NTD's monthly totals can't separate commuting from leisure, but the MBTA's open data portal publishes ridership by day and time of day (for example, subway gated station entries), which would allow comparing weekday peak trips with weekend trips against 2019.
+- Seasonal dumbbell chart (summer vs. winter recovery by mode), once the result is clear enough to show on the site.
+
 Pipeline and data
 - Make `extract.ts` itself fail on duplicate `mode`/`tos`/`month` rows, not just the CSV test.
 - Add ferry (FB) as a fourth mode group.
@@ -183,7 +202,6 @@ Database
 - Supabase GitHub integration so migrations deploy from the repo.
 
 App
-- Seasonal dumbbell chart (summer vs. winter recovery by mode) to test the hypothesis.
 - Mode toggles on the chart.
 - `loading.tsx`.
 

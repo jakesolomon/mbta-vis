@@ -58,7 +58,7 @@ export default async function Home() {
         <p className="eyebrow text-muted">
           MBTA monthly trips vs. 2019 · through {month(latest)}
         </p>
-        {/* Draft copy: the headline and paragraphs below are written to the data as of Aug 2026. */}
+        {/* The headline and the reasoning below are written for the data through Aug 2026. */}
         <h1 className="mt-2 max-w-[18ch] text-4xl font-extrabold leading-display tracking-display text-balance sm:text-5xl">
           Commuter rail is back. The subway isn&apos;t.
         </h1>
