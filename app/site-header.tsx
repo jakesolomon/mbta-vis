@@ -25,7 +25,7 @@ export default function SiteHeader() {
               <Link href="/#how" className={`${link} hidden sm:inline`}>How it&apos;s built</Link>
               <Link href="/admin" className={link}>Admin</Link>
             </nav>
-            <ExternalLink href={REPO_URL} className={`${link} border-l border-band-muted pl-4 sm:pl-5`}>
+            <ExternalLink href={REPO_URL} className={`${link} border-l border-band-muted pl-4 whitespace-nowrap sm:pl-5`}>
               GitHub
             </ExternalLink>
           </div>
