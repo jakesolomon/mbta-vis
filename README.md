@@ -185,6 +185,16 @@ bun dev        # http://localhost:3000
 
 I used Claude to help plan the architecture and cut the scope down to a weekend's worth of work, and Claude Code to speed up development. I review all of its output and test the code it writes before keeping it.
 
+## On a client project
+
+This is a weekend project with one developer and one user, so I skipped processes that a client project would need. What I'd do differently:
+
+- **Reviewed pull requests.** Here I merged branches locally and made some small fixes directly on `main`. On a client project, every change would go through a pull request, with `main` protected and a reviewer other than the author.
+- **CI.** Nothing runs automatically. I'd run `bun test`, `bun run lint` and `bun run build` on every pull request and block merging when they fail.
+- **Migrations deployed from the repo.** I apply migrations with `bunx supabase db push --linked` from my machine. I'd use the Supabase GitHub integration (or a CI step) so migrations deploy on merge, and nobody changes the schema by hand.
+- **Separate environments.** One hosted Supabase project serves both development and the live site. I'd develop against local Supabase in Docker and keep separate staging and production projects, trying migrations and seeds on staging first.
+- **Backups.** The ridership data can be rebuilt from the committed CSV, but annotations added through `/admin` exist only in the database. I'd set up scheduled backups or point-in-time recovery, and test a restore.
+
 ## Next steps
 
 Analysis
@@ -198,8 +208,7 @@ Pipeline and data
 
 Database
 - SQL sanity check: every mode's 2019 months should average 100%.
-- Local Supabase through Docker/OrbStack instead of working only against the hosted project.
-- Supabase GitHub integration so migrations deploy from the repo.
+- Local Supabase and migrations deployed from the repo (see [On a client project](#on-a-client-project)).
 
 App
 - Mode toggles on the chart.
