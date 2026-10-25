@@ -42,7 +42,9 @@ const submitTo = (action: (form: FormData) => void, pending: boolean) => (e: For
 
 export default function AnnotationsTable({ rows }: { rows: Annotation[] }) {
   return (
-    <div className="overflow-x-auto">
+    // relative: the sr-only "Actions" header is absolutely positioned, and without a positioned
+    // ancestor it escapes the scroll box and widens the page on narrow screens
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
         <thead>
           <tr className="border-b-2 border-foreground text-left">
