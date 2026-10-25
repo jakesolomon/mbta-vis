@@ -27,7 +27,7 @@ const cell = 'px-2 py-2 align-top'
 const input =
   'w-full border-2 border-foreground bg-background outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background px-2 py-1'
 const button = 'px-2 py-1 font-bold aria-disabled:opacity-50'
-const primary = `${button} bg-band text-band-ink`
+const primary = `${button} bg-action text-action-ink not-aria-disabled:hover:bg-action-hover`
 const quiet = `${button} underline-offset-2 hover:underline`
 
 const isError = (s: AnnotationState): s is { error: string } => !!s && 'error' in s

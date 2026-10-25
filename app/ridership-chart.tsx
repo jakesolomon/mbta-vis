@@ -380,7 +380,7 @@ export default function RidershipChart({
       )}
 
       <details className="text-sm">
-        <summary className="cursor-pointer font-medium text-muted hover:text-foreground">Show data table</summary>
+        <summary className="font-medium text-muted hover:text-foreground">Show data table</summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full tabular-nums">
             <caption className="sr-only">{title}: monthly trips and percent of 2019 average</caption>

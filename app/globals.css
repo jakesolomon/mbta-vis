@@ -11,6 +11,10 @@
   --band-ink: #ffffff;
   --band-muted: #b8b8b8;
   --danger: #c4161c;
+  /* primary buttons: ink-filled, so they stand out on the page in both schemes (unlike the band) */
+  --action: #111111;
+  --action-ink: #ffffff;
+  --action-hover: #3d3d3d;
   --chart-ink-secondary: #3d3d3d;
   --chart-muted: #6e6e6e;
   --chart-grid: #e6e6e6;
@@ -39,6 +43,9 @@
   --color-band-ink: var(--band-ink);
   --color-band-muted: var(--band-muted);
   --color-danger: var(--danger);
+  --color-action: var(--action);
+  --color-action-ink: var(--action-ink);
+  --color-action-hover: var(--action-hover);
   --color-chart-ink-secondary: var(--chart-ink-secondary);
   --color-chart-muted: var(--chart-muted);
   --color-chart-grid: var(--chart-grid);
@@ -89,6 +96,9 @@
     --band-ink: #ffffff;
     --band-muted: #a6a6a6;
     --danger: #ff6b5e;
+    --action: #f2f2f2;
+    --action-ink: #111111;
+    --action-hover: #cfcfcf;
     --chart-ink-secondary: #cfcfcf;
     --chart-muted: #8f8f8f;
     --chart-grid: #262626;
@@ -108,4 +118,13 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Tailwind v4's preflight gives buttons the default cursor; anything clickable gets the pointer */
+@layer base {
+  button:not(:disabled, [aria-disabled="true"]),
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
 }
