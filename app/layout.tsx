@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import SiteFooter from "./site-footer";
 import SiteHeader from "./site-header";
 import "./globals.css";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SiteHeader />
         {children}
         <SiteFooter />
+        <Analytics />
       </body>
     </html>
   );
